@@ -1,8 +1,8 @@
 {
-    "token" : "YOUR API KEY HERE",
-    "white_list": {
-        "userid" : "YOUR USER ID HERE"
+    "telegram_bot_token" : "YOUR API KEY HERE",
+    "user_white_list": {
+        "admin" : "YOUR USER ID HERE"
     },
-    "massa_address" : "YOUR MASSA ADDRESS",
-    "ninja_key" : "YOUR NINJA KEY HERE"
+    "massa_node_address" : "YOUR MASSA ADDRESS",
+    "ninja_api_key" : "YOUR NINJA KEY HERE"
 }

@@ -90,11 +90,11 @@ def main():
         # Open 'topology.json' file
         with open('topology.json', 'r', encoding='utf-8') as file:
             tmp_json = json.load(file)
-            token = tmp_json.get('token')
+            token = tmp_json.get('telegram_bot_token')
             # Update globals
-            allowed_user_ids = {str(tmp_json.get('white_list', {}).get('userid'))}
-            massa_node_address = tmp_json.get('massa_address')
-            ninja_key = tmp_json.get('ninja_key')
+            allowed_user_ids = {str(tmp_json.get('user_white_list', {}).get('admin'))}
+            massa_node_address = tmp_json.get('massa_node_address')
+            ninja_key = tmp_json.get('ninja_api_key')
     except FileNotFoundError:
         logging.error("The file 'topology.json' was not found.")
         return
