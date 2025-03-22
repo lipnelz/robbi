@@ -42,3 +42,5 @@ The `topology.json` file describes all the usefull informations for Robbi.
 [API-NINJA](https://www.api-ninjas.com/)
 
 [MASSA JSON RPC API](https://docs.massa.net/docs/build/api/jsonrpc)
+
+[TELEGRAM BOT API](https://core.telegram.org/bots/api)

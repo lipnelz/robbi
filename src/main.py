@@ -13,6 +13,7 @@ logging.basicConfig(
     level=logging.INFO
 )
 
+# Globals shared among callbacks
 allowed_user_ids = set()
 massa_node_address = ""
 ninja_key = ""
@@ -103,8 +104,9 @@ def main():
 
     # Use of ApplicationBuilder to create app
     application = ApplicationBuilder().token(token).build()
-    # Use of handler for /hello command
+    # Use of handler for /hello or /hi command
     application.add_handler(CommandHandler("hello", hello))
+    application.add_handler(CommandHandler("hi", hello))
     # Use of handler for /massa command
     application.add_handler(CommandHandler("massa", massa_node))
     # Use of handler for /btc command
