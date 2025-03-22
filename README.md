@@ -1,13 +1,12 @@
 # Telegram bot for network status management
 
 This project has for purpose to be able to check the availability of local network devices (e.g home network) through a telegram bot.
-All bot activity is logged in a local file for debug purpose.
 
 ## Features
 
-- **Check the network status** : Robbi can ping local devices and says if it's still online or not.
-- **Massa node status** : Robbi can ping a specific massa node and tell details about it.
+- **Activity logging** : Logs all activity into `bot_activity.log`
 - **User white list** : Robbi can filter users access based on a preconfigured whitelist.
+- **Highly customizable** : You can use your own API keys and update with your own commands.
 
 ## How to configure
 
@@ -19,7 +18,8 @@ The `topology.json` file describes all the usefull informations for Robbi.
     "white_list": {
         "userid": "YOUR_USER_ID"
     },
-    "massa_address": "YOUR_MASSA_ADDRESS"
+    "massa_address": "YOUR_MASSA_ADDRESS",
+    "ninja_key" : "YOUR_NINJA_API_KEY"
 }
 ```
 
@@ -31,9 +31,14 @@ The `topology.json` file describes all the usefull informations for Robbi.
 
 - `/btc` : Get bitcoin price, variation, high, low and volume.
 
-
 ## Prerequis
 
 - Python 3.x
 - A telegram account and a bot created thanks to [BotFather](https://core.telegram.org/bots#botfather).
 - Python libraries : `python-telegram-bot`, `requests`, `json`, `logging`
+
+## Links
+
+[API-NINJA](https://www.api-ninjas.com/)
+
+[MASSA JSON RPC API](https://docs.massa.net/docs/build/api/jsonrpc)
