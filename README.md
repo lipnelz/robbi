@@ -27,7 +27,7 @@ The `topology.json` file describes all the usefull informations for Robbi.
 
 - `/hello` : Say hello.
 
-- `/massa` : Retrieve info from your massa node, such as roll count, validated cycles, missed cycles and balance.
+- `/node` : Retrieve info from your massa node, such as roll count, validated cycles, missed cycles and balance.
 
 - `/btc` : Get bitcoin price, variation, high, low and volume.
 

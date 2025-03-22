@@ -49,7 +49,7 @@ async def hello(update: Update, context: CallbackContext) -> None:
 
 async def massa_node(update: Update, context: CallbackContext) -> None:
     user_id = str(update.effective_user.id)
-    logging.info(f'User {user_id} used the /massa command.')
+    logging.info(f'User {user_id} used the /node command.')
 
     if user_id in allowed_user_ids:
         # Get new data
@@ -63,6 +63,7 @@ async def massa_node(update: Update, context: CallbackContext) -> None:
             f"OK Counts: {ok_counts}\n"
             f"NOK Counts: {nok_counts}"
         )
+        print(formatted_string)
         await update.message.reply_text('Node status: ' + formatted_string)
 
 async def bitcoin(update: Update, context: CallbackContext) -> None:
@@ -79,6 +80,7 @@ async def bitcoin(update: Update, context: CallbackContext) -> None:
             f"24h Low: {float(data['24h_low']):.2f}\n"
             f"24h Volume: {float(data['24h_volume']):.2f}"
         )
+        print(formatted_string)
         await update.message.reply_text(formatted_string)
 
 async def mas(update: Update, context: CallbackContext) -> None:
@@ -98,8 +100,8 @@ async def mas(update: Update, context: CallbackContext) -> None:
             f"Price Change: {float(ticker_price_change_stats['priceChange']):.6f}\n"
             f"24h High: {float(ticker_price_change_stats['highPrice']):.6f}\n"
             f"24h Low: {float(ticker_price_change_stats['lowPrice']):.6f}\n"
-
         )
+        print(formatted_string)
         await update.message.reply_text(formatted_string)
 
 def main():
@@ -128,8 +130,8 @@ def main():
     # Use of handler for /hello or /hi command
     application.add_handler(CommandHandler("hello", hello))
     application.add_handler(CommandHandler("hi", hello))
-    # Use of handler for /massa command
-    application.add_handler(CommandHandler("massa", massa_node))
+    # Use of handler for /node command
+    application.add_handler(CommandHandler("node", massa_node))
     # Use of handler for /btc command
     application.add_handler(CommandHandler("btc", bitcoin))
     # Use of handler for /mas command
