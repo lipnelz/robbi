@@ -3,7 +3,7 @@ import logging
 from typing import Tuple, List
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, CallbackContext
-from jrequests import get_addresses, get_bitcoin_price
+from jrequests import get_addresses, get_bitcoin_price, get_mas_intant, get_mas_daily
 
 # Configure logging module
 logging.basicConfig(
@@ -81,6 +81,27 @@ async def bitcoin(update: Update, context: CallbackContext) -> None:
         )
         await update.message.reply_text(formatted_string)
 
+async def mas(update: Update, context: CallbackContext) -> None:
+    user_id = str(update.effective_user.id)
+    logging.info(f'User {user_id} used the /mas command.')
+
+    if user_id in allowed_user_ids:
+        current_avg_price = get_mas_intant(logging)
+        ticker_price_change_stats = get_mas_daily(logging)
+        formatted_string = (
+            f"{ticker_price_change_stats['symbol']}\n"
+            f"-----------\n"
+            f"Price: {float(current_avg_price['price']):.5f} USDT\n"
+            f"24h Volume: {float(ticker_price_change_stats['volume']):.6f}\n"
+            f"-----------\n"
+            f"Price Change: {float(ticker_price_change_stats['priceChangePercent']):.6f}%\n"
+            f"Price Change: {float(ticker_price_change_stats['priceChange']):.6f}\n"
+            f"24h High: {float(ticker_price_change_stats['highPrice']):.6f}\n"
+            f"24h Low: {float(ticker_price_change_stats['lowPrice']):.6f}\n"
+
+        )
+        await update.message.reply_text(formatted_string)
+
 def main():
     global allowed_user_ids
     global massa_node_address
@@ -111,6 +132,8 @@ def main():
     application.add_handler(CommandHandler("massa", massa_node))
     # Use of handler for /btc command
     application.add_handler(CommandHandler("btc", bitcoin))
+    # Use of handler for /mas command
+    application.add_handler(CommandHandler("mas", mas))
     # Start bot
     application.run_polling()
 

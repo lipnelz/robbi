@@ -31,6 +31,8 @@ The `topology.json` file describes all the usefull informations for Robbi.
 
 - `/btc` : Get bitcoin price, variation, high, low and volume.
 
+- `/mas` : Get MAS/USDT info from MEXC
+
 ## Prerequis
 
 - Python 3.x
@@ -43,10 +45,12 @@ The `topology.json` file describes all the usefull informations for Robbi.
 python .\src\main.py
 ```
 
-## Links
+## External links
 
 [API-NINJA](https://www.api-ninjas.com/)
 
 [MASSA JSON RPC API](https://docs.massa.net/docs/build/api/jsonrpc)
 
 [TELEGRAM BOT API](https://core.telegram.org/bots/api)
+
+[MEXC API DOC](https://mexcdevelop.github.io/apidocs/spot_v3_en/#current-average-price)
