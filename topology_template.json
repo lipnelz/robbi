@@ -3,5 +3,6 @@
     "white_list": {
         "userid" : "YOUR USER ID HERE"
     },
-    "massa_address" : "YOUR MASSA ADDRESS"
+    "massa_address" : "YOUR MASSA ADDRESS",
+    "ninja_key" : "YOUR NINJA KEY HERE"
 }

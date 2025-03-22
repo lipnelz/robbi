@@ -3,7 +3,7 @@ import logging
 from typing import Tuple, List
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, CallbackContext
-from jrequests import get_addresses
+from jrequests import get_addresses, get_bitcoin_price
 
 # Configure logging module
 logging.basicConfig(
@@ -15,7 +15,7 @@ logging.basicConfig(
 
 allowed_user_ids = set()
 massa_node_address = ""
-
+ninja_key = ""
 
 def extract_data(json_data: dict) -> Tuple[str, int, List[int], List[int], List[int]]:
     """
@@ -34,9 +34,9 @@ def extract_data(json_data: dict) -> Tuple[str, int, List[int], List[int], List[
         return final_balance, final_roll_count, cycles, ok_counts, nok_counts
     return "", 0, [], [], []
 
-async def start(update: Update, context: CallbackContext) -> None:
+async def hello(update: Update, context: CallbackContext) -> None:
     user_id = str(update.effective_user.id)
-    logging.info(f'User {user_id} used the /start command.')
+    logging.info(f'User {user_id} used the /hello command.')
 
     if user_id in allowed_user_ids:
         photo_path = 'https://upload.wikimedia.org/wikipedia/en/thumb/9/93/Buddy_christ.jpg/300px-Buddy_christ.jpg'
@@ -46,29 +46,44 @@ async def start(update: Update, context: CallbackContext) -> None:
         photo_path = 'https://media1.giphy.com/media/OPU6wzx8JrHna/giphy.gif?cid=6c09b952dldwktjvqrd7lflvvi4p89xcofc6u3z2u7el6pla&ep=v1_internal_gif_by_id&rid=giphy.gif&ct=g'
         await update.message.reply_photo(photo=photo_path)
 
-async def status(update: Update, context: CallbackContext) -> None:
+async def massa_node(update: Update, context: CallbackContext) -> None:
     user_id = str(update.effective_user.id)
-    logging.info(f'User {user_id} used the /start command.')
+    logging.info(f'User {user_id} used the /massa command.')
 
     if user_id in allowed_user_ids:
         # Get new data
-        json_data = get_addresses(massa_node_address)
+        json_data = get_addresses(logging, massa_node_address)
 
         # Extract useful data using the function
         final_balance, final_roll_count, cycles, ok_counts, nok_counts = extract_data(json_data)
         formatted_string = (
             f"Final Balance: {final_balance}\n"
             f"Final Roll Count: {final_roll_count}\n"
-            f"Cycles: {cycles}\n"
             f"OK Counts: {ok_counts}\n"
             f"NOK Counts: {nok_counts}"
         )
         await update.message.reply_text('Node status: ' + formatted_string)
 
+async def bitcoin(update: Update, context: CallbackContext) -> None:
+    user_id = str(update.effective_user.id)
+    logging.info(f'User {user_id} used the /btc command.')
+
+    if user_id in allowed_user_ids:
+        data = get_bitcoin_price(logging, ninja_key)
+        formatted_string = (
+            f"Price: {float(data['price']):.2f}\n"
+            f"24h Price Change: {float(data['24h_price_change']):.2f}\n"
+            f"24h Price Change Percent: {float(data['24h_price_change_percent']):.2f}%\n"
+            f"24h High: {float(data['24h_high']):.2f}\n"
+            f"24h Low: {float(data['24h_low']):.2f}\n"
+            f"24h Volume: {float(data['24h_volume']):.2f}"
+        )
+        await update.message.reply_text(formatted_string)
 
 def main():
     global allowed_user_ids
     global massa_node_address
+    global ninja_key
 
     try:
         # Open 'topology.json' file
@@ -78,6 +93,7 @@ def main():
             # Update globals
             allowed_user_ids = {str(tmp_json.get('white_list', {}).get('userid'))}
             massa_node_address = tmp_json.get('massa_address')
+            ninja_key = tmp_json.get('ninja_key')
     except FileNotFoundError:
         logging.error("The file 'topology.json' was not found.")
         return
@@ -87,10 +103,12 @@ def main():
 
     # Use of ApplicationBuilder to create app
     application = ApplicationBuilder().token(token).build()
-    # Use of handler for /start command
-    application.add_handler(CommandHandler("start", start))
-    # Use of handler for /status command
-    application.add_handler(CommandHandler("status", status))
+    # Use of handler for /hello command
+    application.add_handler(CommandHandler("hello", hello))
+    # Use of handler for /massa command
+    application.add_handler(CommandHandler("massa", massa_node))
+    # Use of handler for /btc command
+    application.add_handler(CommandHandler("btc", bitcoin))
     # Start bot
     application.run_polling()
 
