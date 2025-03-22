@@ -37,6 +37,12 @@ The `topology.json` file describes all the usefull informations for Robbi.
 - A telegram account and a bot created thanks to [BotFather](https://core.telegram.org/bots#botfather).
 - Python libraries : `python-telegram-bot`, `requests`, `json`, `logging`
 
+## How to run
+
+```shell
+python .\src\main.py
+```
+
 ## Links
 
 [API-NINJA](https://www.api-ninjas.com/)
