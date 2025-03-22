@@ -14,12 +14,12 @@ The `topology.json` file describes all the usefull informations for Robbi.
 
 ```json
 {
-    "token": "YOUR_API_KEY",
-    "white_list": {
-        "userid": "YOUR_USER_ID"
+    "telegram_bot_token": "YOUR_API_KEY",
+    "user_white_list": {
+        "admin": "YOUR_USER_ID"
     },
-    "massa_address": "YOUR_MASSA_ADDRESS",
-    "ninja_key" : "YOUR_NINJA_API_KEY"
+    "massa_node_address": "YOUR_MASSA_ADDRESS",
+    "ninja_api_key" : "YOUR_NINJA_API_KEY"
 }
 ```
 
