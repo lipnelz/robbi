@@ -1,0 +1,7 @@
+{
+    "token" : "YOUR API KEY HERE",
+    "white_list": {
+        "userid" : "YOUR USER ID HERE"
+    },
+    "massa_address" : "YOUR MASSA ADDRESS"
+}
