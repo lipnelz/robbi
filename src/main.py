@@ -88,11 +88,11 @@ async def hello(update: Update, context: CallbackContext) -> None:
     logging.info(f'User {user_id} used the /hello command.')
 
     if user_id in allowed_user_ids:
-        photo_path = 'https://upload.wikimedia.org/wikipedia/en/thumb/9/93/Buddy_christ.jpg/300px-Buddy_christ.jpg'
+        photo_path = 'media/Buddy_christ.jpg'
         await update.message.reply_text('Hey dude!')
         await update.message.reply_photo(photo=photo_path)
     else:
-        photo_path = 'https://media1.giphy.com/media/OPU6wzx8JrHna/giphy.gif?cid=6c09b952dldwktjvqrd7lflvvi4p89xcofc6u3z2u7el6pla&ep=v1_internal_gif_by_id&rid=giphy.gif&ct=g'
+        photo_path = 'media/patrick.gif'
         await update.message.reply_photo(photo=photo_path)
 
 async def massa_node(update: Update, context: CallbackContext) -> None:
