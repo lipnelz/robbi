@@ -1,9 +1,13 @@
+import os
 import json
 import logging
+import plotly.graph_objs as go
+import plotly.io as pio
 from typing import Tuple, List
 from telegram import Update
-from telegram.ext import ApplicationBuilder, CommandHandler, CallbackContext
+from telegram.ext import ApplicationBuilder, CommandHandler, CallbackContext, ContextTypes
 from jrequests import get_addresses, get_bitcoin_price, get_mas_intant, get_mas_daily
+
 
 # Configure logging module
 logging.basicConfig(
@@ -35,6 +39,48 @@ def extract_data(json_data: dict) -> Tuple[str, int, List[int], List[int], List[
         return final_balance, final_roll_count, cycles, ok_counts, nok_counts
     return "", 0, [], [], []
 
+def create_png_pot(cycles: int, nok_counts: int, ok_counts: int) -> str:
+        """
+        Creates a line plot with markers for OK and NOK counts over multiple cycles,
+        and saves the plot as a PNG image.
+
+        :param cycles(int): A list or array of integers representing the cycles for which counts are recorded.
+        :param nok_counts(int): A list or array of integers representing the NOK counts for each cycle.
+        :param ok_counts(int): A list or array of integers representing the OK counts for each cycle.
+
+        :return(str): The file path of the generated PNG image.
+        """
+        fig = go.Figure()
+
+        fig.add_trace(go.Scatter(
+            x=cycles,
+            y=nok_counts,
+            mode='lines+markers',
+            name='NOK Counts',
+            line=dict(color='red')
+        ))
+
+        fig.add_trace(go.Scatter(
+            x=cycles,
+            y=ok_counts,
+            mode='lines+markers',
+            name='OK Counts',
+            line=dict(color='blue')
+        ))
+
+        fig.update_layout(
+            title='Validation per Cycle',
+            xaxis_title='Cycle',
+            yaxis_title='Count',
+            xaxis=dict(tickformat='.0f')
+        )
+
+        # Save the plot as a PNG file
+        image_path = 'plot.png'
+        pio.write_image(fig, image_path)
+
+        return image_path
+
 async def hello(update: Update, context: CallbackContext) -> None:
     user_id = str(update.effective_user.id)
     logging.info(f'User {user_id} used the /hello command.')
@@ -65,6 +111,21 @@ async def massa_node(update: Update, context: CallbackContext) -> None:
         )
         print(formatted_string)
         await update.message.reply_text('Node status: ' + formatted_string)
+
+        # Create graph from data and save to plot.png
+        image_path = create_png_pot(cycles, nok_counts, ok_counts)
+
+        # Check if the image file was created successfully
+        if os.path.exists(image_path):
+            try:
+                # Send the image via Telegram with a timeout
+                await update.message.reply_photo(photo=image_path)
+            finally:
+                # Delete the image file after sending
+                os.remove(image_path)
+                print(f"{image_path} has been deleted.")
+        else:
+            logging.error("Image file was not created successfully.")
 
 async def bitcoin(update: Update, context: CallbackContext) -> None:
     user_id = str(update.effective_user.id)
