@@ -10,6 +10,9 @@ from jrequests import get_addresses, get_bitcoin_price, get_mas_intant, get_mas_
 
 
 LOG_FILE_NAME = 'bot_activity.log'
+PNG_FILE_NAME = 'plot.png'
+BUDDY_FILE_NAME = 'Buddy_christ.jpg'
+PAT_FILE_NAME = 'patrick.gif'
 
 # Configure logging module
 logging.basicConfig(
@@ -78,7 +81,7 @@ def create_png_pot(cycles: int, nok_counts: int, ok_counts: int) -> str:
         )
 
         # Save the plot as a PNG file
-        image_path = 'plot.png'
+        image_path = PNG_FILE_NAME
         pio.write_image(fig, image_path)
 
         return image_path
@@ -88,11 +91,11 @@ async def hello(update: Update, context: CallbackContext) -> None:
     logging.info(f'User {user_id} used the /hello command.')
 
     if user_id in allowed_user_ids:
-        photo_path = 'media/Buddy_christ.jpg'
+        photo_path = 'media/' + BUDDY_FILE_NAME
         await update.message.reply_text('Hey dude!')
         await update.message.reply_photo(photo=photo_path)
     else:
-        photo_path = 'media/patrick.gif'
+        photo_path = 'media/' + PAT_FILE_NAME
         await update.message.reply_photo(photo=photo_path)
 
 async def massa_node(update: Update, context: CallbackContext) -> None:
@@ -114,7 +117,7 @@ async def massa_node(update: Update, context: CallbackContext) -> None:
         print(formatted_string)
         await update.message.reply_text('Node status: ' + formatted_string)
 
-        # Create graph from data and save to plot.png
+        # Create graph from data and save to PNG_FILE_NAME
         image_path = create_png_pot(cycles, nok_counts, ok_counts)
 
         # Check if the image file was created successfully
@@ -148,7 +151,6 @@ async def remove_logs(update: Update, context: CallbackContext) -> None:
         else:
             logging.warning(f"Log file {LOG_FILE_NAME} does not exist.")
             await update.message.reply_text(f"Log file {LOG_FILE_NAME} does not exist.")
-
 
 async def bitcoin(update: Update, context: CallbackContext) -> None:
     user_id = str(update.effective_user.id)
