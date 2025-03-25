@@ -5,7 +5,7 @@ import plotly.graph_objs as go
 import plotly.io as pio
 from typing import Tuple, List
 from telegram import Update
-from telegram.ext import ApplicationBuilder, CommandHandler, CallbackContext, ContextTypes
+from telegram.ext import ApplicationBuilder, CommandHandler, CallbackContext
 from jrequests import get_addresses, get_bitcoin_price, get_mas_intant, get_mas_daily
 
 
