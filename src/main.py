@@ -9,9 +9,11 @@ from telegram.ext import ApplicationBuilder, CommandHandler, CallbackContext
 from jrequests import get_addresses, get_bitcoin_price, get_mas_intant, get_mas_daily
 
 
+LOG_FILE_NAME = 'bot_activity.log'
+
 # Configure logging module
 logging.basicConfig(
-    filename='bot_activity.log',
+    filename=LOG_FILE_NAME,
     filemode='a',
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     level=logging.INFO
@@ -127,6 +129,27 @@ async def massa_node(update: Update, context: CallbackContext) -> None:
         else:
             logging.error("Image file was not created successfully.")
 
+async def remove_logs(update: Update, context: CallbackContext) -> None:
+    user_id = str(update.effective_user.id)
+    logging.info(f'User {user_id} used the /flush /clean command.')
+
+    if user_id in allowed_user_ids:
+        if os.path.exists(LOG_FILE_NAME):
+            try:
+                # Clear the log file at runtime
+                with open(LOG_FILE_NAME, 'w'):
+                    pass  # This will clear the file content
+                message = f"{LOG_FILE_NAME} has been cleared."
+                print(message)
+                await update.message.reply_text(message)
+            except IOError as e:
+                logging.error(f"Error clearing the log file: {e}")
+                await update.message.reply_text("An error occurred while clearing the log file.")
+        else:
+            logging.warning(f"Log file {LOG_FILE_NAME} does not exist.")
+            await update.message.reply_text(f"Log file {LOG_FILE_NAME} does not exist.")
+
+
 async def bitcoin(update: Update, context: CallbackContext) -> None:
     user_id = str(update.effective_user.id)
     logging.info(f'User {user_id} used the /btc command.')
@@ -197,6 +220,9 @@ def main():
     application.add_handler(CommandHandler("btc", bitcoin))
     # Use of handler for /mas command
     application.add_handler(CommandHandler("mas", mas))
+    # Use of handler for /flush, /clean command
+    application.add_handler(CommandHandler("flush", remove_logs))
+    application.add_handler(CommandHandler("clean", remove_logs))
     # Start bot
     application.run_polling()
 
