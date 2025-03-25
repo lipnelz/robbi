@@ -33,6 +33,8 @@ The `topology.json` file describes all the usefull configuration informations fo
 
 - `/mas` : Get MAS/USDT info from MEXC.
 
+- `/clean` `/flush`: Clean activity debug logs
+
 ## Prerequis
 
 - Python 3.x
