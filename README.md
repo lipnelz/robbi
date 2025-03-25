@@ -37,7 +37,7 @@ The `topology.json` file describes all the usefull informations for Robbi.
 
 - Python 3.x
 - A telegram account and a bot created thanks to [BotFather](https://core.telegram.org/bots#botfather).
-- Python libraries : `python-telegram-bot`, `requests`, `json`, `logging`
+- Python libraries : `python-telegram-bot`, `requests`, `json`, `logging`, `plotly`
 
 ## How to run
 
