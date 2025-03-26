@@ -25,7 +25,7 @@ The `topology.json` file describes all the usefull configuration informations fo
 
 ## Commands
 
-- `/hello` `/hi`: Say hi to Robbi.
+- `/hi`: Say hi to Robbi.
 
 - `/node` : Retrieve info from your preconfigured massa node, such as roll count, validated cycles, missed cycles and balance.
 
@@ -33,7 +33,7 @@ The `topology.json` file describes all the usefull configuration informations fo
 
 - `/mas` : Get MAS/USDT info from MEXC.
 
-- `/clean` `/flush`: Clean activity debug logs
+- `/flush`: Clean activity debug logs
 
 ## Prerequis
 
