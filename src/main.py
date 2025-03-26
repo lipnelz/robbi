@@ -4,15 +4,53 @@ import logging
 import plotly.graph_objs as go
 import plotly.io as pio
 from typing import Tuple, List
-from telegram import Update
-from telegram.ext import ApplicationBuilder, CommandHandler, CallbackContext
+from telegram import Update, BotCommand
+from telegram.ext import Application, CommandHandler, CallbackContext
 from jrequests import get_addresses, get_bitcoin_price, get_mas_intant, get_mas_daily
-
 
 LOG_FILE_NAME = 'bot_activity.log'
 PNG_FILE_NAME = 'plot.png'
 BUDDY_FILE_NAME = 'Buddy_christ.jpg'
 PAT_FILE_NAME = 'patrick.gif'
+
+HI_CMD_TXT = 'hi'
+HI_CMD_DESC_TXT = 'Say hi to Robbi'
+NODE_CMD_TXT = 'node'
+NODE_CMD_DESC_TXT = 'Get your node results'
+BTC_CMD_TXT = 'btc'
+BTC_CMD_DESC_TXT = 'Get BTC current price'
+MAS_CMD_TXT = 'mas'
+MAS_CMD_DESC_TXT = 'Get MAS current price'
+FLUSH_CMD_TXT = 'flush'
+FLUSH_CMD_DESC_TXT = 'Flush local logs'
+
+COMMANDS_LIST = [
+    {
+        'id': 0,
+        'cmd_txt': HI_CMD_TXT,
+        'cmd_desc': HI_CMD_DESC_TXT
+    },
+    {
+        'id': 1,
+        'cmd_txt': NODE_CMD_TXT,
+        'cmd_desc': NODE_CMD_DESC_TXT
+    },
+    {
+        'id': 2,
+        'cmd_txt': BTC_CMD_TXT,
+        'cmd_desc': BTC_CMD_DESC_TXT
+    },
+    {
+        'id': 3,
+        'cmd_txt': MAS_CMD_TXT,
+        'cmd_desc': MAS_CMD_DESC_TXT
+    },
+    {
+        'id': 4,
+        'cmd_txt': FLUSH_CMD_TXT,
+        'cmd_desc': FLUSH_CMD_DESC_TXT
+    }
+]
 
 # Configure logging module
 logging.basicConfig(
@@ -190,6 +228,21 @@ async def mas(update: Update, context: CallbackContext) -> None:
         print(formatted_string)
         await update.message.reply_text(formatted_string)
 
+async def post_init(application: Application) -> None:
+    commands = [
+        BotCommand(command=cmd['cmd_txt'], description=cmd['cmd_desc'])
+        for cmd in COMMANDS_LIST
+    ]
+    await application.bot.set_my_commands(commands)
+
+HANDLERS = [
+    (COMMANDS_LIST[0]['cmd_txt'], hello),
+    (COMMANDS_LIST[1]['cmd_txt'], massa_node),
+    (COMMANDS_LIST[2]['cmd_txt'], bitcoin),
+    (COMMANDS_LIST[3]['cmd_txt'], mas),
+    (COMMANDS_LIST[4]['cmd_txt'], remove_logs)
+]
+
 def main():
     global allowed_user_ids
     global massa_node_address
@@ -212,19 +265,12 @@ def main():
         return
 
     # Use of ApplicationBuilder to create app
-    application = ApplicationBuilder().token(token).build()
-    # Use of handler for /hello or /hi command
-    application.add_handler(CommandHandler("hello", hello))
-    application.add_handler(CommandHandler("hi", hello))
-    # Use of handler for /node command
-    application.add_handler(CommandHandler("node", massa_node))
-    # Use of handler for /btc command
-    application.add_handler(CommandHandler("btc", bitcoin))
-    # Use of handler for /mas command
-    application.add_handler(CommandHandler("mas", mas))
-    # Use of handler for /flush, /clean command
-    application.add_handler(CommandHandler("flush", remove_logs))
-    application.add_handler(CommandHandler("clean", remove_logs))
+    application = Application.builder().token(token).post_init(post_init).build()
+
+    # Populate with commands in handlers
+    for cmd_txt, handler_func in HANDLERS:
+        application.add_handler(CommandHandler(cmd_txt, handler_func))
+
     # Start bot
     application.run_polling()
 
