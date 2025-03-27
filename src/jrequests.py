@@ -2,12 +2,13 @@ import requests
 import json
 import logging
 
-def get_status(logger, address: str) -> None:
+def get_status(logger, address: str) -> dict:
     """
     Print the status from a given address
 
     :param logger: The logger instance
     :param address: The address to querry.
+    :return: json string encoded due to 'None' value returned by remote server
     """
     # Define API and URL
     url = 'https://mainnet.massa.net/api/v2'
@@ -18,7 +19,7 @@ def get_status(logger, address: str) -> None:
         "jsonrpc": "2.0",
         "id": 1,
         "method": "get_status",
-         "params": [[address]]
+         "params": []
     }
 
     if logger is None:
@@ -28,9 +29,10 @@ def get_status(logger, address: str) -> None:
         response = requests.post(url, headers=headers, data=json.dumps(data))
         # Check response status
         if response.status_code == requests.codes.ok:
-            # Parse JSON
-            response_json = response.json()
-            print(json.dumps(response_json, indent=4))
+            cleaned_response = json.dumps(response.json(), indent=4).rstrip('None\n').strip()
+            data = json.loads(cleaned_response)
+            print(data)
+            return data
         else:
             logger.error(f"Error: {response.status_code}")
     except requests.exceptions.RequestException as e:

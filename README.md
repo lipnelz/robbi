@@ -4,6 +4,7 @@ This project has for purpose to be able to run a telegram bot interaction script
 
 ## Features
 
+- **Massa node** : Periodically checks your massa node status and send a message if the node seems down
 - **Activity logging** : Logs all activity into `bot_activity.log`
 - **User white list** : Robbi can filter users access based on a preconfigured whitelist.
 - **Highly customizable** : You can use your own API keys and update with your own commands.
@@ -39,7 +40,7 @@ The `topology.json` file describes all the usefull configuration informations fo
 
 - Python 3.x
 - A telegram account and a bot created thanks to [BotFather](https://core.telegram.org/bots#botfather).
-- Python libraries : `python-telegram-bot`, `requests`, `json`, `logging`, `plotly`
+- Python libraries : `python-telegram-bot`, `requests`, `json`, `logging`, `plotly`, `apscheduler`
 
 ## How to run
 
