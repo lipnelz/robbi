@@ -1,18 +1,23 @@
 import os
 import json
 import logging
+import functools
+import asyncio
 import plotly.graph_objs as go
 import plotly.io as pio
 from typing import Tuple, List
 from telegram import Update, BotCommand
 from telegram.ext import Application, CommandHandler, CallbackContext
 from jrequests import get_addresses, get_bitcoin_price, get_mas_intant, get_mas_daily
+from apscheduler.schedulers.background import BackgroundScheduler
+
 
 LOG_FILE_NAME = 'bot_activity.log'
 PNG_FILE_NAME = 'plot.png'
 BUDDY_FILE_NAME = 'Buddy_christ.jpg'
 PAT_FILE_NAME = 'patrick.gif'
 
+# String constants
 HI_CMD_TXT = 'hi'
 HI_CMD_DESC_TXT = 'Say hi to Robbi'
 NODE_CMD_TXT = 'node'
@@ -23,6 +28,7 @@ MAS_CMD_TXT = 'mas'
 MAS_CMD_DESC_TXT = 'Get MAS current price'
 FLUSH_CMD_TXT = 'flush'
 FLUSH_CMD_DESC_TXT = 'Flush local logs'
+NODE_IS_DOWN = 'Node is down'
 
 COMMANDS_LIST = [
     {
@@ -64,10 +70,12 @@ logging.basicConfig(
 allowed_user_ids = set()
 massa_node_address = ""
 ninja_key = ""
+prev_active_rolls = []
+bot_token = ""
 
-def extract_data(json_data: dict) -> Tuple[str, int, List[int], List[int], List[int]]:
+def extract_address_data(json_data: dict) -> Tuple[str, int, List[int], List[int], List[int], List[int]]:
     """
-    Extract useful JSON response data.
+    Extract useful JSON response data from get_address.
 
     :param json_data: Input JSON data to parse.
     :return: Tuple composed of final_balance, final_roll_count, cycles, ok_counts and nok_counts.
@@ -79,8 +87,9 @@ def extract_data(json_data: dict) -> Tuple[str, int, List[int], List[int], List[
         cycles = [info["cycle"] for info in result["cycle_infos"]]
         ok_counts = [info["ok_count"] for info in result["cycle_infos"]]
         nok_counts = [info["nok_count"] for info in result["cycle_infos"]]
-        return final_balance, final_roll_count, cycles, ok_counts, nok_counts
-    return "", 0, [], [], []
+        active_rolls = [info["active_rolls"] for info in result["cycle_infos"]]
+        return final_balance, final_roll_count, cycles, ok_counts, nok_counts, active_rolls
+    return "", 0, [], [], [], []
 
 def create_png_pot(cycles: int, nok_counts: int, ok_counts: int) -> str:
         """
@@ -145,12 +154,13 @@ async def massa_node(update: Update, context: CallbackContext) -> None:
         json_data = get_addresses(logging, massa_node_address)
 
         # Extract useful data using the function
-        final_balance, final_roll_count, cycles, ok_counts, nok_counts = extract_data(json_data)
+        final_balance, final_roll_count, cycles, ok_counts, nok_counts, active_rolls = extract_address_data(json_data)
         formatted_string = (
             f"Final Balance: {final_balance}\n"
             f"Final Roll Count: {final_roll_count}\n"
             f"OK Counts: {ok_counts}\n"
-            f"NOK Counts: {nok_counts}"
+            f"NOK Counts: {nok_counts}\n"
+            f"Active Rolls: {active_rolls}"
         )
         print(formatted_string)
         await update.message.reply_text('Node status: ' + formatted_string)
@@ -197,7 +207,7 @@ async def bitcoin(update: Update, context: CallbackContext) -> None:
     if user_id in allowed_user_ids:
         data = get_bitcoin_price(logging, ninja_key)
         formatted_string = (
-            f"Price: {float(data['price']):.2f}\n"
+            f"Price: {float(data['price']):.2f} $\n"
             f"24h Price Change: {float(data['24h_price_change']):.2f}\n"
             f"24h Price Change Percent: {float(data['24h_price_change_percent']):.2f}%\n"
             f"24h High: {float(data['24h_high']):.2f}\n"
@@ -228,13 +238,6 @@ async def mas(update: Update, context: CallbackContext) -> None:
         print(formatted_string)
         await update.message.reply_text(formatted_string)
 
-async def post_init(application: Application) -> None:
-    commands = [
-        BotCommand(command=cmd['cmd_txt'], description=cmd['cmd_desc'])
-        for cmd in COMMANDS_LIST
-    ]
-    await application.bot.set_my_commands(commands)
-
 HANDLERS = [
     (COMMANDS_LIST[0]['cmd_txt'], hello),
     (COMMANDS_LIST[1]['cmd_txt'], massa_node),
@@ -243,16 +246,49 @@ HANDLERS = [
     (COMMANDS_LIST[4]['cmd_txt'], remove_logs)
 ]
 
+async def post_init(application: Application) -> None:
+    commands = [
+        BotCommand(command=cmd['cmd_txt'], description=cmd['cmd_desc'])
+        for cmd in COMMANDS_LIST
+    ]
+    await application.bot.set_my_commands(commands)
+
+def run_async_func(application: Application) -> None:
+    loop = asyncio.new_event_loop()
+    scheduler = BackgroundScheduler()
+    # Use functools.partial to pass the bot instance correctly
+    scheduler.add_job(functools.partial(run_coroutine_in_loop, periodic_node_ping(application), loop), 'interval', minutes=60)
+    scheduler.start()
+
+def run_coroutine_in_loop(coroutine, loop):
+    asyncio.set_event_loop(loop)
+    loop.run_until_complete(coroutine)
+
+async def periodic_node_ping(application: Application) -> None:
+    logging.info(f'Node ping')
+    json_data = get_addresses(logging, massa_node_address)
+    # Extract useful data using the function
+    final_balance, final_roll_count, cycles, ok_counts, nok_counts, active_rolls = extract_address_data(json_data)
+    logging.info((any(element != 0 for element in nok_counts) != 0))
+    logging.info(active_rolls != prev_active_rolls)
+    if((any(element != 0 for element in nok_counts) != 0) or (active_rolls != prev_active_rolls)):
+        for user_id in allowed_user_ids:
+            run_async_func(application) # Restart the scheduler
+            await application.bot.send_message(chat_id=user_id, text=NODE_IS_DOWN)
+
+
 def main():
     global allowed_user_ids
     global massa_node_address
     global ninja_key
+    global bot_token
+    global prev_active_rolls
 
     try:
         # Open 'topology.json' file
         with open('topology.json', 'r', encoding='utf-8') as file:
             tmp_json = json.load(file)
-            token = tmp_json.get('telegram_bot_token')
+            bot_token = tmp_json.get('telegram_bot_token')
             # Update globals
             allowed_user_ids = {str(tmp_json.get('user_white_list', {}).get('admin'))}
             massa_node_address = tmp_json.get('massa_node_address')
@@ -264,13 +300,20 @@ def main():
         logging.error("Error decoding the JSON file.")
         return
 
+    # Get node info at bot startup
+    json_data = get_addresses(logging, massa_node_address)
+    final_balance, final_roll_count, cycles, ok_counts, nok_counts, active_rolls = extract_address_data(json_data)
+    prev_active_rolls = list(active_rolls)
+
     # Use of ApplicationBuilder to create app
-    application = Application.builder().token(token).post_init(post_init).build()
+    application = Application.builder().token(bot_token).post_init(post_init).build()
 
     # Populate with commands in handlers
     for cmd_txt, handler_func in HANDLERS:
         application.add_handler(CommandHandler(cmd_txt, handler_func))
 
+    # Start the scheduler
+    run_async_func(application)
     # Start bot
     application.run_polling()
 
