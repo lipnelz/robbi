@@ -219,6 +219,9 @@ async def periodic_node_ping(application: Application) -> None:
     json_data = get_addresses(logging, massa_node_address)
     # Extract useful data using the function
     data = extract_address_data(json_data)
+    logging.info(any(data[4]))
+    logging.info(data[5])
+    logging.info(prev_active_rolls)
     if any(data[4]) or data[5] != prev_active_rolls:
         for user_id in allowed_user_ids:
             run_async_func(application)
@@ -251,6 +254,7 @@ def main():
     # Get node info at bot startup
     json_data = get_addresses(logging, massa_node_address)
     prev_active_rolls = list(extract_address_data(json_data)[5])
+    print(prev_active_rolls)
 
     # Use of ApplicationBuilder to create app
     application = Application.builder().token(bot_token).post_init(post_init).build()
