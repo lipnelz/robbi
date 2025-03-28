@@ -5,6 +5,7 @@ import functools
 import asyncio
 import plotly.graph_objs as go
 import plotly.io as pio
+import matplotlib.pyplot as plt
 from datetime import datetime
 from typing import Tuple, List
 from telegram import Update, BotCommand
@@ -103,36 +104,17 @@ def create_png_pot(cycles: int, nok_counts: int, ok_counts: int) -> str:
 
         :return(str): The file path of the generated PNG image.
         """
-        fig = go.Figure()
-
-        fig.add_trace(go.Scatter(
-            x=cycles,
-            y=nok_counts,
-            mode='lines+markers',
-            name='NOK Counts',
-            line=dict(color='red')
-        ))
-
-        fig.add_trace(go.Scatter(
-            x=cycles,
-            y=ok_counts,
-            mode='lines+markers',
-            name='OK Counts',
-            line=dict(color='blue')
-        ))
-
-        fig.update_layout(
-            title='Validation per Cycle',
-            xaxis_title='Cycle',
-            yaxis_title='Count',
-            xaxis=dict(tickformat='.0f')
-        )
-
-        # Save the plot as a PNG file
-        image_path = PNG_FILE_NAME
-        pio.write_image(fig, image_path)
-
-        return image_path
+        plt.figure(figsize=(10, 6))
+        plt.plot(cycles, nok_counts, marker='o', linestyle='-', color='red', label='NOK Counts')
+        plt.plot(cycles, ok_counts, marker='o', linestyle='-', color='blue', label='OK Counts')
+        plt.title('Validation per Cycle')
+        plt.xlabel('Cycle')
+        plt.ylabel('Count')
+        plt.legend()
+        plt.grid(True)
+        plt.savefig(PNG_FILE_NAME)
+        plt.close()
+        return PNG_FILE_NAME
 
 async def hello(update: Update, context: CallbackContext) -> None:
     user_id = str(update.effective_user.id)
