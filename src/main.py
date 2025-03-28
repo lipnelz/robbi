@@ -77,9 +77,11 @@ ninja_key = ""
 prev_active_rolls = []
 bot_token = ""
 
-def disable_prints():
+def disable_prints() -> None:
+    # Redirect stdout to a string stream to suppress print statements
     sys.stdout = io.StringIO()
-    sys.stdout = sys.__stdout__
+    # Redirect stderr to a string stream to suppress error messages
+    sys.stderr = io.StringIO()
 
 def extract_address_data(json_data: dict) -> Tuple[str, int, List[int], List[int], List[int], List[int]]:
     """
