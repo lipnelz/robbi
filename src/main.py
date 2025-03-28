@@ -5,6 +5,7 @@ import functools
 import asyncio
 import plotly.graph_objs as go
 import plotly.io as pio
+from datetime import datetime
 from typing import Tuple, List
 from telegram import Update, BotCommand
 from telegram.ext import Application, CommandHandler, CallbackContext
@@ -256,8 +257,16 @@ async def post_init(application: Application) -> None:
 def run_async_func(application: Application) -> None:
     loop = asyncio.new_event_loop()
     scheduler = BackgroundScheduler()
-    # Use functools.partial to pass the bot instance correctly
-    scheduler.add_job(functools.partial(run_coroutine_in_loop, periodic_node_ping(application), loop), 'interval', minutes=60)
+    hour = datetime.now().hour
+
+    if 22 <= hour < 6:
+        # Use functools.partial to pass the bot instance correctly
+        scheduler.add_job(functools.partial(run_coroutine_in_loop, periodic_node_ping(application), loop), 'interval', minutes=120)
+    elif 6 <= hour < 22:
+        scheduler.add_job(functools.partial(run_coroutine_in_loop, periodic_node_ping(application), loop), 'interval', minutes=60)
+    else:
+        logging.error(f'Should not happen {hour}')
+
     scheduler.start()
 
 def run_coroutine_in_loop(coroutine, loop):
