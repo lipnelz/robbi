@@ -326,5 +326,9 @@ def main():
     # Start bot
     application.run_polling()
 
+    # Should never happen
+    logging.info("Bot stopped.")
+    print("Bot stopped.")
+
 if __name__ == '__main__':
     main()
