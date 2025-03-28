@@ -1,4 +1,6 @@
 import os
+import io
+import sys
 import json
 import logging
 import functools
@@ -74,6 +76,10 @@ massa_node_address = ""
 ninja_key = ""
 prev_active_rolls = []
 bot_token = ""
+
+def disable_prints():
+    sys.stdout = io.StringIO()
+    sys.stdout = sys.__stdout__
 
 def extract_address_data(json_data: dict) -> Tuple[str, int, List[int], List[int], List[int], List[int]]:
     """
@@ -290,6 +296,9 @@ def main():
     except json.JSONDecodeError:
         logging.error("Error decoding the JSON file.")
         return
+
+    disable_prints()
+    logging.info("Starting bot...")
 
     # Get node info at bot startup
     json_data = get_addresses(logging, massa_node_address)
