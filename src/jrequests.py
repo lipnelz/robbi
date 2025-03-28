@@ -26,7 +26,7 @@ def get_status(logger, address: str) -> dict:
         logger = logging.getLogger()
     try:
         # Send POST request
-        response = requests.post(url, headers=headers, data=json.dumps(data))
+        response = requests.post(url, headers=headers, data=json.dumps(data), timeout=10)
         # Check response status
         if response.status_code == requests.codes.ok:
             cleaned_response = json.dumps(response.json(), indent=4).rstrip('None\n').strip()
@@ -63,7 +63,7 @@ def get_addresses(logger, address: str) -> dict:
 
     try:
         # Send POST request
-        response = requests.post(url, headers=headers, data=json.dumps(data))
+        response = requests.post(url, headers=headers, data=json.dumps(data), timeout=10)
         # Check response status
         if response.status_code == requests.codes.ok:
             # Parse JSON
@@ -95,7 +95,7 @@ def get_bitcoin_price(logger, api_key: str) -> str:
         logger = logging.getLogger()
 
     try:
-        response = requests.get(url, headers)
+        response = requests.get(url, headers, timeout=10)
         if response.status_code == requests.codes.ok:
             return response.json()
         else:
@@ -114,7 +114,7 @@ def get_mas_intant(logger) -> str:
     if logger is None:
         logger = logging.getLogger()
     try:
-        response = requests.get(url)
+        response = requests.get(url, timeout=10)
         if response.status_code == requests.codes.ok:
             return response.json()
         else:
@@ -135,7 +135,7 @@ def get_mas_daily(logger) -> str:
     if logger is None:
         logger = logging.getLogger()
     try:
-        response = requests.get(url)
+        response = requests.get(url, timeout=10)
         if response.status_code == requests.codes.ok:
             return response.json()
         else:
