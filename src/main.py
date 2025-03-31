@@ -28,6 +28,7 @@ COMMANDS_LIST = [
 ]
 
 NODE_IS_DOWN = 'Node is down'
+NODE_IS_UP = 'Node is up and running'
 
 # Configure logging module
 logging.basicConfig(
@@ -43,6 +44,7 @@ massa_node_address = ""
 ninja_key = ""
 prev_active_rolls = []
 bot_token = ""
+balance_history = {}
 
 def disable_prints() -> None:
     # Redirect stdout to a string stream to suppress print statements
@@ -198,16 +200,7 @@ async def post_init(application: Application) -> None:
 def run_async_func(application: Application) -> None:
     loop = asyncio.new_event_loop()
     scheduler = BackgroundScheduler()
-    hour = datetime.now().hour
-
-    if 22 <= hour < 6:
-        # Use functools.partial to pass the bot instance correctly
-        scheduler.add_job(functools.partial(run_coroutine_in_loop, periodic_node_ping(application), loop), 'interval', minutes=120)
-    elif 6 <= hour < 22:
-        scheduler.add_job(functools.partial(run_coroutine_in_loop, periodic_node_ping(application), loop), 'interval', minutes=60)
-    else:
-        logging.error(f'Should not happen {hour}')
-
+    scheduler.add_job(functools.partial(run_coroutine_in_loop, periodic_node_ping(application), loop), 'interval', minutes=60)
     scheduler.start()
 
 def run_coroutine_in_loop(coroutine, loop) -> None:
@@ -215,17 +208,47 @@ def run_coroutine_in_loop(coroutine, loop) -> None:
     loop.run_until_complete(coroutine)
 
 async def periodic_node_ping(application: Application) -> None:
-    logging.info(f'Node ping')
+    logging.info(f'Node ping beginning...')
     json_data = get_addresses(logging, massa_node_address)
     # Extract useful data using the function
     data = extract_address_data(json_data)
-    logging.info(any(data[4]))
-    logging.info(data[5])
-    logging.info(prev_active_rolls)
+    logging.info(data)
+
+    # Get the current hour and minute
+    now = datetime.now()
+    hour = now.hour
+    minute = now.minute
+
+    # Check if the node is down
     if any(data[4]) or data[5] != prev_active_rolls:
         for user_id in allowed_user_ids:
             run_async_func(application)
             await application.bot.send_message(chat_id=user_id, text=NODE_IS_DOWN)
+            logging.info(f"Node is down.")
+    else:
+        # Add data to balance_history with the key hour::minute
+        time_key = f"{hour:02d}::{minute:02d}"
+        balance_history[time_key] = f"Balance: ${data[0]}\n"
+
+        # If the node is up and hour is 12 then send a message
+        if hour == 12:
+            for user_id in allowed_user_ids:
+                tmp_string = NODE_IS_UP + f"\n{balance_history}"
+                logging.info(tmp_string)
+                await application.bot.send_message(chat_id=user_id, text=tmp_string)
+                # Clear the balance_history dictionary after sending the message
+                balance_history.clear()
+        logging.info(f"Node is up.")
+
+    # Check if the previous active rolls need to be reset
+    # Reset the previous active rolls between midnight and 2 AM
+    if hour >= 0 and hour < 2:
+        logging.info("Resetting previous active rolls.")
+        prev_active_rolls.clear()
+        prev_active_rolls.extend(data[5])
+        logging.info(prev_active_rolls)
+        logging.info("Previous active rolls reset.")
+
 
 
 def main():
@@ -234,6 +257,7 @@ def main():
     global ninja_key
     global bot_token
     global prev_active_rolls
+    global balance_history
 
     try:
         # Open 'topology.json' file
