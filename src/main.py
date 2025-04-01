@@ -70,7 +70,7 @@ def extract_address_data(json_data: dict) -> Tuple[str, int, List[int], List[int
         return final_balance, final_roll_count, cycles, ok_counts, nok_counts, active_rolls
     return "", 0, [], [], [], []
 
-def create_png_plot(cycles: int, nok_counts: int, ok_counts: int) -> str:
+def create_png_plot(cycles: List[int], nok_counts: List[int], ok_counts: List[int]) -> str:
         """
         Creates a line plot with markers for OK and NOK counts over multiple cycles,
         and saves the plot as a PNG image.
@@ -106,34 +106,47 @@ async def node(update: Update, context: CallbackContext) -> None:
     logging.info(f'User {user_id} used the /node command.')
 
     if user_id in allowed_user_ids:
-        # Get new data
-        json_data = get_addresses(logging, massa_node_address)
+        try:
+            # Get new data
+            json_data = get_addresses(logging, massa_node_address)
+            # Extract useful data using the function
+            data = extract_address_data(json_data)
+            if not data or len(data) < 6:  # Check if extract has returned empty data
+                logging.error(f"Node unreachable or no data available")
+                await update.message.reply_text("Node unreachable or no data available.")
+                return
 
-        # Extract useful data using the function
-        data = extract_address_data(json_data)
-        formatted_string = (
-            f"Final Balance: {data[0]}\n"
-            f"Final Roll Count: {data[1]}\n"
-            f"OK Counts: {data[3]}\n"
-            f"NOK Counts: {data[4]}\n"
-            f"Active Rolls: {data[5]}"
-        )
-        print(formatted_string)
-        await update.message.reply_text('Node status: ' + formatted_string)
+            formatted_string = (
+                f"Final Balance: {data[0]}\n"
+                f"Final Roll Count: {data[1]}\n"
+                f"OK Counts: {data[3]}\n"
+                f"NOK Counts: {data[4]}\n"
+                f"Active Rolls: {data[5]}"
+            )
+            print(formatted_string)
+            await update.message.reply_text('Node status: ' + formatted_string)
 
-        # Create graph from data and save to PNG_FILE_NAME
-        image_path = create_png_plot(data[2], data[4], data[3])
-        # Check if the image file was created successfully
-        if os.path.exists(image_path):
-            try:
-                # Send the image via Telegram with a timeout
-                await update.message.reply_photo(photo=image_path)
-            finally:
-                # Delete the image file after sending
-                os.remove(image_path)
-                print(f"{image_path} has been deleted.")
-        else:
-            logging.error("Image file was not created successfully.")
+            # Create graph from data and save to PNG_FILE_NAME
+            image_path = create_png_plot(data[2], data[4], data[3])
+            # Check if the image file was created successfully
+            if os.path.exists(image_path):
+                try:
+                    # Send the image via Telegram with a timeout
+                    await update.message.reply_photo(photo=image_path)
+                except Exception as e:
+                    logging.error(f"Error while send image : {e}")
+                    await update.message.reply_text("Error while send image.")
+                finally:
+                    # Delete the image file after sending
+                    os.remove(image_path)
+                    print(f"{image_path} has been deleted.")
+            else:
+                logging.error("Image file was not created successfully.")
+                await update.message.reply_text("Image file was not created successfully.")
+        except Exception as e:
+                logging.error(f"Error in node /node : {e}")
+                await update.message.reply_text("Arf !")
+                await update.message.reply_photo(photo=('media/' + PAT_FILE_NAME))
 
 async def flush(update: Update, context: CallbackContext) -> None:
     user_id = str(update.effective_user.id)
@@ -209,46 +222,53 @@ def run_coroutine_in_loop(coroutine, loop) -> None:
 
 async def periodic_node_ping(application: Application) -> None:
     logging.info(f'Node ping beginning...')
-    json_data = get_addresses(logging, massa_node_address)
-    # Extract useful data using the function
-    data = extract_address_data(json_data)
-    logging.info(data)
 
-    # Get the current hour and minute
-    now = datetime.now()
-    hour = now.hour
-    minute = now.minute
+    try:
+        json_data = get_addresses(logging, massa_node_address)
+        # Extract useful data using the function
+        data = extract_address_data(json_data)
+        logging.info(data)
 
-    # Check if the node is down
-    if any(data[4]) or data[5] != prev_active_rolls:
-        for user_id in allowed_user_ids:
-            run_async_func(application)
-            await application.bot.send_message(chat_id=user_id, text=NODE_IS_DOWN)
-            logging.info(f"Node is down.")
-    else:
-        # Add data to balance_history with the key hour::minute
-        time_key = f"{hour:02d}::{minute:02d}"
-        balance_history[time_key] = f"Balance: ${data[0]}\n"
+        if not data or len(data) < 6:
+            logging.error("Invalid data.")
+            return
 
-        # If the node is up and hour is 12 then send a message
-        if hour == 12:
+        logging.info(f"Extracted data: {data}")
+
+        # Get the current hour and minute
+        now = datetime.now()
+        hour, minute = now.hour, now.minute
+
+        # Check if the node is down
+        if any(data[4]) or data[5] != prev_active_rolls:
             for user_id in allowed_user_ids:
+                run_async_func(application)
+                await application.bot.send_message(chat_id=user_id, text=NODE_IS_DOWN)
+            logging.info(f"Node is down.")
+        else:
+            # Add data to balance_history with the key hour::minute
+            time_key = f"{hour:02d}::{minute:02d}"
+            balance_history[time_key] = f"Balance: ${data[0]}\n"
+
+            # If the node is up and hour is 12 then send a message
+            if hour == 12:
                 tmp_string = NODE_IS_UP + f"\n{balance_history}"
-                logging.info(tmp_string)
-                await application.bot.send_message(chat_id=user_id, text=tmp_string)
+                for user_id in allowed_user_ids:
+                    await application.bot.send_message(chat_id=user_id, text=tmp_string)
                 # Clear the balance_history dictionary after sending the message
                 balance_history.clear()
-        logging.info(f"Node is up.")
+            logging.info(f"Node is up.")
 
-    # Check if the previous active rolls need to be reset
-    # Reset the previous active rolls between midnight and 2 AM
-    if hour >= 0 and hour < 2:
-        logging.info("Resetting previous active rolls.")
-        prev_active_rolls.clear()
-        prev_active_rolls.extend(data[5])
-        logging.info(prev_active_rolls)
-        logging.info("Previous active rolls reset.")
-
+        # Check if the previous active rolls need to be reset
+        # Reset the previous active rolls between midnight and 2 AM
+        if 0 <= hour < 2:
+            logging.info("Resetting previous active rolls.")
+            prev_active_rolls.clear()
+            prev_active_rolls.extend(data[5])
+            logging.info(prev_active_rolls)
+            logging.info("Previous active rolls reset.")
+    except Exception as e:
+        logging.error(f"Error in periodic_node_ping: {e}")
 
 
 def main():
