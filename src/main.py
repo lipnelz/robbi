@@ -10,7 +10,7 @@ from datetime import datetime
 from typing import Tuple, List
 from telegram import Update, BotCommand
 from telegram.ext import Application, CommandHandler, CallbackContext
-from jrequests import get_addresses, get_bitcoin_price, get_mas_intant, get_mas_daily
+from jrequests import get_addresses, get_bitcoin_price, get_mas_instant, get_mas_daily
 from apscheduler.schedulers.background import BackgroundScheduler
 
 
@@ -20,6 +20,8 @@ BUDDY_FILE_NAME = 'Buddy_christ.jpg'
 PAT_FILE_NAME = 'patrick.gif'
 BTC_CRY_NAME = "btc_cry.png"
 MAS_CRY_NAME = "mas_cry.png"
+TIMEOUT_NAME = "timeout.png"
+TIMEOUT_FIRE_NAME = "timeout_fire.png"
 
 COMMANDS_LIST = [
     {'id': 0, 'cmd_txt': 'hi', 'cmd_desc': 'Say hi to Robbi'},
@@ -111,6 +113,18 @@ async def node(update: Update, context: CallbackContext) -> None:
         try:
             # Get new data
             json_data = get_addresses(logging, massa_node_address)
+            if "error" in json_data:
+                error_message = json_data["error"]
+                if "timed out" in error_message:
+                    logging.error("Timeout occurred while trying to get the status.")
+                    for user_id in allowed_user_ids:
+                        await update.message.reply_photo(chat_id=user_id, photo=('media/' + TIMEOUT_NAME))
+                else:
+                    logging.error(f"Error while getting the status: {error_message}")
+                    for user_id in allowed_user_ids:
+                        await update.message.reply_photo(chat_id=user_id, photo=('media/' + TIMEOUT_FIRE_NAME))
+                return
+
             # Extract useful data using the function
             data = extract_address_data(json_data)
             if not data or len(data) < 6:  # Check if extract has returned empty data
@@ -168,6 +182,7 @@ async def flush(update: Update, context: CallbackContext) -> None:
         logging.warning(f"Log file {LOG_FILE_NAME} does not exist.")
         await update.message.reply_text(f"Log file {LOG_FILE_NAME} does not exist.")
 
+
 async def btc(update: Update, context: CallbackContext) -> None:
     user_id = str(update.effective_user.id)
     logging.info(f'User {user_id} used the /btc command.')
@@ -175,6 +190,18 @@ async def btc(update: Update, context: CallbackContext) -> None:
     if user_id in allowed_user_ids:
         try:
             data = get_bitcoin_price(logging, ninja_key)
+            if "error" in data:
+                error_message = data["error"]
+                if "timed out" in error_message:
+                    logging.error("Timeout occurred while trying to get the status.")
+                    for user_id in allowed_user_ids:
+                        await update.message.reply_photo(chat_id=user_id, photo=('media/' + TIMEOUT_NAME))
+                else:
+                    logging.error(f"Error while getting the status: {error_message}")
+                    for user_id in allowed_user_ids:
+                        await update.message.reply_photo(chat_id=user_id, photo=('media/' + TIMEOUT_FIRE_NAME))
+                return
+
             formatted_string = (
                 f"Price: {float(data['price']):.2f} $\n"
                 f"24h Price Change: {float(data['24h_price_change']):.2f}\n"
@@ -196,8 +223,20 @@ async def mas(update: Update, context: CallbackContext) -> None:
 
     if user_id in allowed_user_ids:
         try:
-            current_avg_price = get_mas_intant(logging)
+            current_avg_price = get_mas_instant(logging)
             ticker_price_change_stats = get_mas_daily(logging)
+            if "error" in current_avg_price or "error" in ticker_price_change_stats:
+                error_message = current_avg_price["error"] if "error" in current_avg_price else ticker_price_change_stats["error"]
+                if "timed out" in error_message:
+                    logging.error("Timeout occurred while trying to get the status.")
+                    for user_id in allowed_user_ids:
+                        await update.message.reply_photo(chat_id=user_id, photo=('media/' + TIMEOUT_NAME))
+                else:
+                    logging.error(f"Error while getting the status: {error_message}")
+                    for user_id in allowed_user_ids:
+                        await update.message.reply_photo(chat_id=user_id, photo=('media/' + TIMEOUT_FIRE_NAME))
+                return
+
             formatted_string = (
                 f"{ticker_price_change_stats['symbol']}\n"
                 f"-----------\n"
@@ -223,20 +262,65 @@ async def post_init(application: Application) -> None:
     await application.bot.set_my_commands(commands)
 
 def run_async_func(application: Application) -> None:
-    loop = asyncio.new_event_loop()
-    scheduler = BackgroundScheduler()
-    scheduler.add_job(functools.partial(run_coroutine_in_loop, periodic_node_ping(application), loop), 'interval', minutes=60)
-    scheduler.start()
+    try:
+        try:
+            loop = asyncio.get_running_loop()
+            logging.info("Use the same event loop.")
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            logging.info("Create a new event loop.")
 
-def run_coroutine_in_loop(coroutine, loop) -> None:
-    asyncio.set_event_loop(loop)
-    loop.run_until_complete(coroutine)
+        scheduler = BackgroundScheduler()
+
+        if scheduler.get_job("periodic_node_ping"):
+            scheduler.remove_job("periodic_node_ping")
+            logging.info("Previous job 'periodic_node_ping' removed.")
+
+        logging.info("Add periodic job 'periodic_node_ping'.")
+        scheduler.add_job(
+            functools.partial(run_coroutine_in_loop, periodic_node_ping, application, loop),
+            'interval',
+            minutes=60,
+            id="periodic_node_ping",
+            name="periodic_node_ping"
+        )
+
+        # Start scheduler if not already running
+        if not scheduler.running:
+            scheduler.start()
+            logging.info("Scheduler started.")
+    except Exception as e:
+        logging.error(f"Error in run_async_func: {e}")
+
+def run_coroutine_in_loop(coroutine, application, loop) -> None:
+    try:
+        # Check if loop is already running
+        if loop.is_running():
+            logging.info("Event loop already running, scheduling coroutine.")
+            asyncio.ensure_future(coroutine(application), loop=loop)
+        else:
+            logging.info("Running coroutine in a new loop.")
+            loop.run_until_complete(coroutine(application))
+    except Exception as e:
+        logging.error(f"Error in run_coroutine_in_loop: {e}")
 
 async def periodic_node_ping(application: Application) -> None:
     logging.info(f'Node ping beginning...')
 
     try:
         json_data = get_addresses(logging, massa_node_address)
+        if "error" in json_data:
+            error_message = json_data["error"]
+            if "timed out" in error_message:
+                logging.error("Timeout occurred while trying to get the status.")
+                for user_id in allowed_user_ids:
+                    await application.bot.reply_photo(chat_id=user_id, photo=('media/' + TIMEOUT_NAME))
+            else:
+                logging.error(f"Error while getting the status: {error_message}")
+                for user_id in allowed_user_ids:
+                    await application.bot.reply_photo(chat_id=user_id, photo=('media/' + TIMEOUT_FIRE_NAME))
+
         # Extract useful data using the function
         data = extract_address_data(json_data)
         logging.info(data)
@@ -303,12 +387,20 @@ def main():
         logging.error(f"Error loading topology.json: {e}")
         return
 
-    disable_prints()
+    #disable_prints()
     logging.info("Starting bot...")
 
     # Get node info at bot startup
     json_data = get_addresses(logging, massa_node_address)
-    prev_active_rolls = list(extract_address_data(json_data)[5])
+    if "error" in json_data:
+        error_message = json_data["error"]
+        if "timed out" in error_message:
+            logging.error("Timeout occurred while trying to get the status.")
+        else:
+            logging.error(f"Error while getting the status: {error_message}")
+        prev_active_rolls = [0] * 6
+    else:
+        prev_active_rolls = list(extract_address_data(json_data)[5])
     print(prev_active_rolls)
 
     # Use of ApplicationBuilder to create app

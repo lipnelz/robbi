@@ -35,8 +35,15 @@ def get_status(logger, address: str) -> dict:
             return data
         else:
             logger.error(f"Error: {response.status_code}")
-    except requests.exceptions.RequestException as e:
-        logger.error(f"An error occurred: {e}")
+    except requests.Timeout:
+        logger.error("Request timed out. The server took too long to respond.")
+        return {"error": "Request timed out. The server took too long to respond."}
+    except requests.ConnectionError:
+        logger.error("Failed to establish a connection to the server.")
+        return {"error": "Connection error. Unable to reach the server."}
+    except requests.RequestException as e:
+        logger.error(f"An unexpected error occurred: {e}")
+        return {"error": f"Unexpected error: {str(e)}"}
 
 def get_addresses(logger, address: str) -> dict:
     """
@@ -72,12 +79,18 @@ def get_addresses(logger, address: str) -> dict:
             return response_json
         else:
             logger.error(f"Error: {response.status_code}")
-            return {}
-    except requests.exceptions.RequestException as e:
-        logger.error(f"An error occurred: {e}")
-        return {}
+            return {"error": "Status code not handled."}
+    except requests.Timeout:
+        logger.error("Request timed out. The server took too long to respond.")
+        return {"error": "Request timed out. The server took too long to respond."}
+    except requests.ConnectionError:
+        logger.error("Failed to establish a connection to the server.")
+        return {"error": "Connection error. Unable to reach the server."}
+    except requests.RequestException as e:
+        logger.error(f"An unexpected error occurred: {e}")
+        return {"error": f"Unexpected error: {str(e)}"}
 
-def get_bitcoin_price(logger, api_key: str) -> str:
+def get_bitcoin_price(logger, api_key: str) -> dict:
     """
     Get bitcoin price
 
@@ -100,10 +113,18 @@ def get_bitcoin_price(logger, api_key: str) -> str:
             return response.json()
         else:
             logger.error(f"Error retrieving Bitcoin price: {response.status_code}")
+            return {"error": "Status code not handled."}
+    except requests.Timeout:
+        logger.error("Request timed out. The server took too long to respond.")
+        return {"error": "Request timed out. The server took too long to respond."}
+    except requests.ConnectionError:
+        logger.error("Failed to establish a connection to the server.")
+        return {"error": "Connection error. Unable to reach the server."}
     except requests.RequestException as e:
-        logger.error(f"An error occurred: {e}")
+        logger.error(f"An unexpected error occurred: {e}")
+        return {"error": f"Unexpected error: {str(e)}"}
 
-def get_mas_intant(logger) -> str:
+def get_mas_instant(logger) -> dict:
     """
     Current MAS Average Price
 
@@ -119,10 +140,18 @@ def get_mas_intant(logger) -> str:
             return response.json()
         else:
             logger.error(f"Error retrieving MAS price: {response.status_code}")
+            return {"error": "Status code not handled."}
+    except requests.Timeout:
+        logger.error("Request timed out. The server took too long to respond.")
+        return {"error": "Request timed out. The server took too long to respond."}
+    except requests.ConnectionError:
+        logger.error("Failed to establish a connection to the server.")
+        return {"error": "Connection error. Unable to reach the server."}
     except requests.RequestException as e:
-        logger.error(f"An error occurred: {e}")
+        logger.error(f"An unexpected error occurred: {e}")
+        return {"error": f"Unexpected error: {str(e)}"}
 
-def get_mas_daily(logger) -> str:
+def get_mas_daily(logger) -> dict:
     """
     Get 24hr Ticker MAS Price Change Statistics
 
@@ -140,5 +169,13 @@ def get_mas_daily(logger) -> str:
             return response.json()
         else:
             logger.error(f"Error retrieving 24hr MAS info: {response.status_code}")
+            return {"error": "Status code not handled."}
+    except requests.Timeout:
+        logger.error("Request timed out. The server took too long to respond.")
+        return {"error": "Request timed out. The server took too long to respond."}
+    except requests.ConnectionError:
+        logger.error("Failed to establish a connection to the server.")
+        return {"error": "Connection error. Unable to reach the server."}
     except requests.RequestException as e:
-        logger.error(f"An error occurred: {e}")
+        logger.error(f"An unexpected error occurred: {e}")
+        return {"error": f"Unexpected error: {str(e)}"}
