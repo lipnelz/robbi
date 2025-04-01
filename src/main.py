@@ -18,6 +18,8 @@ LOG_FILE_NAME = 'bot_activity.log'
 PNG_FILE_NAME = 'plot.png'
 BUDDY_FILE_NAME = 'Buddy_christ.jpg'
 PAT_FILE_NAME = 'patrick.gif'
+BTC_CRY_NAME = "btc_cry.png"
+MAS_CRY_NAME = "mas_cry.png"
 
 COMMANDS_LIST = [
     {'id': 0, 'cmd_txt': 'hi', 'cmd_desc': 'Say hi to Robbi'},
@@ -171,38 +173,48 @@ async def btc(update: Update, context: CallbackContext) -> None:
     logging.info(f'User {user_id} used the /btc command.')
 
     if user_id in allowed_user_ids:
-        data = get_bitcoin_price(logging, ninja_key)
-        formatted_string = (
-            f"Price: {float(data['price']):.2f} $\n"
-            f"24h Price Change: {float(data['24h_price_change']):.2f}\n"
-            f"24h Price Change Percent: {float(data['24h_price_change_percent']):.2f}%\n"
-            f"24h High: {float(data['24h_high']):.2f}\n"
-            f"24h Low: {float(data['24h_low']):.2f}\n"
-            f"24h Volume: {float(data['24h_volume']):.2f}"
-        )
-        print(formatted_string)
-        await update.message.reply_text(formatted_string)
+        try:
+            data = get_bitcoin_price(logging, ninja_key)
+            formatted_string = (
+                f"Price: {float(data['price']):.2f} $\n"
+                f"24h Price Change: {float(data['24h_price_change']):.2f}\n"
+                f"24h Price Change Percent: {float(data['24h_price_change_percent']):.2f}%\n"
+                f"24h High: {float(data['24h_high']):.2f}\n"
+                f"24h Low: {float(data['24h_low']):.2f}\n"
+                f"24h Volume: {float(data['24h_volume']):.2f}"
+            )
+            print(formatted_string)
+            await update.message.reply_text(formatted_string)
+        except Exception as e:
+            logging.error(f"Error when /btc : {e}")
+            await update.message.reply_text("Nooooo")
+            await update.message.reply_photo(photo=('media/' + BTC_CRY_NAME))
 
 async def mas(update: Update, context: CallbackContext) -> None:
     user_id = str(update.effective_user.id)
     logging.info(f'User {user_id} used the /mas command.')
 
     if user_id in allowed_user_ids:
-        current_avg_price = get_mas_intant(logging)
-        ticker_price_change_stats = get_mas_daily(logging)
-        formatted_string = (
-            f"{ticker_price_change_stats['symbol']}\n"
-            f"-----------\n"
-            f"Price: {float(current_avg_price['price']):.5f} USDT\n"
-            f"24h Volume: {float(ticker_price_change_stats['volume']):.6f}\n"
-            f"-----------\n"
-            f"Price Change: {float(ticker_price_change_stats['priceChangePercent']):.6f}%\n"
-            f"Price Change: {float(ticker_price_change_stats['priceChange']):.6f}\n"
-            f"24h High: {float(ticker_price_change_stats['highPrice']):.6f}\n"
-            f"24h Low: {float(ticker_price_change_stats['lowPrice']):.6f}\n"
-        )
-        print(formatted_string)
-        await update.message.reply_text(formatted_string)
+        try:
+            current_avg_price = get_mas_intant(logging)
+            ticker_price_change_stats = get_mas_daily(logging)
+            formatted_string = (
+                f"{ticker_price_change_stats['symbol']}\n"
+                f"-----------\n"
+                f"Price: {float(current_avg_price['price']):.5f} USDT\n"
+                f"24h Volume: {float(ticker_price_change_stats['volume']):.6f}\n"
+                f"-----------\n"
+                f"Price Change: {float(ticker_price_change_stats['priceChangePercent']):.6f}%\n"
+                f"Price Change: {float(ticker_price_change_stats['priceChange']):.6f}\n"
+                f"24h High: {float(ticker_price_change_stats['highPrice']):.6f}\n"
+                f"24h Low: {float(ticker_price_change_stats['lowPrice']):.6f}\n"
+            )
+            print(formatted_string)
+            await update.message.reply_text(formatted_string)
+        except Exception as e:
+            logging.error(f"Error when /mas : {e}")
+            await update.message.reply_text("Nooooo")
+            await update.message.reply_photo(photo=('media/' + MAS_CRY_NAME))
 
 HANDLERS = [(cmd['cmd_txt'], globals()[cmd['cmd_txt']]) for cmd in COMMANDS_LIST]
 
@@ -269,7 +281,6 @@ async def periodic_node_ping(application: Application) -> None:
             logging.info("Previous active rolls reset.")
     except Exception as e:
         logging.error(f"Error in periodic_node_ping: {e}")
-
 
 def main():
     global allowed_user_ids
