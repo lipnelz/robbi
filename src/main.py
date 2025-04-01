@@ -14,6 +14,7 @@ from jrequests import get_addresses, get_bitcoin_price, get_mas_instant, get_mas
 from apscheduler.schedulers.background import BackgroundScheduler
 
 
+JOB_SCHED_NAME = 'periodic_node_ping'
 LOG_FILE_NAME = 'bot_activity.log'
 PNG_FILE_NAME = 'plot.png'
 BUDDY_FILE_NAME = 'Buddy_christ.jpg'
@@ -273,17 +274,17 @@ def run_async_func(application: Application) -> None:
 
         scheduler = BackgroundScheduler()
 
-        if scheduler.get_job("periodic_node_ping"):
-            scheduler.remove_job("periodic_node_ping")
-            logging.info("Previous job 'periodic_node_ping' removed.")
+        if scheduler.get_job(JOB_SCHED_NAME):
+            scheduler.remove_job(JOB_SCHED_NAME)
+            logging.info(f"Previous job {JOB_SCHED_NAME} removed.")
 
-        logging.info("Add periodic job 'periodic_node_ping'.")
+        logging.info(f"Add periodic job {JOB_SCHED_NAME}.")
         scheduler.add_job(
             functools.partial(run_coroutine_in_loop, periodic_node_ping, application, loop),
             'interval',
             minutes=60,
-            id="periodic_node_ping",
-            name="periodic_node_ping"
+            id=JOB_SCHED_NAME,
+            name=JOB_SCHED_NAME
         )
 
         # Start scheduler if not already running
@@ -387,7 +388,7 @@ def main():
         logging.error(f"Error loading topology.json: {e}")
         return
 
-    #disable_prints()
+    disable_prints()
     logging.info("Starting bot...")
 
     # Get node info at bot startup
