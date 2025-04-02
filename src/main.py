@@ -339,7 +339,6 @@ async def periodic_node_ping(application: Application) -> None:
         # Check if the node is down
         if any(data[4]) or data[5] != prev_active_rolls:
             for user_id in allowed_user_ids:
-                run_async_func(application)
                 await application.bot.send_message(chat_id=user_id, text=NODE_IS_DOWN)
             logging.info(f"Node is down.")
         else:
@@ -347,8 +346,8 @@ async def periodic_node_ping(application: Application) -> None:
             time_key = f"{hour:02d}::{minute:02d}"
             balance_history[time_key] = f"Balance: ${data[0]}\n"
 
-            # If the node is up and hour is 12 then send a message
-            if hour == 12:
+            # If the node is up and hour is 6, 12 or 21 then send a message
+            if hour == 7 or hour == 12 or hour == 21:
                 tmp_string = NODE_IS_UP + f"\n{balance_history}"
                 for user_id in allowed_user_ids:
                     await application.bot.send_message(chat_id=user_id, text=tmp_string)
