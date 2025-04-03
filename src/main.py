@@ -47,7 +47,6 @@ logging.basicConfig(
 allowed_user_ids = set()
 massa_node_address = ""
 ninja_key = ""
-prev_active_rolls = []
 bot_token = ""
 balance_history = {}
 
@@ -308,7 +307,6 @@ def run_coroutine_in_loop(coroutine, application, loop) -> None:
 
 async def periodic_node_ping(application: Application) -> None:
     logging.info(f'Node ping beginning...')
-
     try:
         json_data = get_addresses(logging, massa_node_address)
         if "error" in json_data:
@@ -336,33 +334,26 @@ async def periodic_node_ping(application: Application) -> None:
         now = datetime.now()
         hour, minute = now.hour, now.minute
 
-        # Check if the node is down
-        if any(data[4]) or data[5] != prev_active_rolls:
+        # if nok count set contains a value (data[4]) or roll count is 0 (data[1])
+        if any(data[4]) or data[1] == 0:
             for user_id in allowed_user_ids:
                 await application.bot.send_message(chat_id=user_id, text=NODE_IS_DOWN)
             logging.info(f"Node is down.")
         else:
-            # Add data to balance_history with the key hour::minute
-            time_key = f"{hour:02d}::{minute:02d}"
-            balance_history[time_key] = f"Balance: ${data[0]}\n"
-
-            # If the node is up and hour is 6, 12 or 21 then send a message
-            if hour == 7 or hour == 12 or hour == 21:
-                tmp_string = NODE_IS_UP + f"\n{balance_history}"
-                for user_id in allowed_user_ids:
-                    await application.bot.send_message(chat_id=user_id, text=tmp_string)
-                # Clear the balance_history dictionary after sending the message
-                balance_history.clear()
             logging.info(f"Node is up.")
 
-        # Check if the previous active rolls need to be reset
-        # Reset the previous active rolls between midnight and 2 AM
-        if 0 <= hour < 2:
-            logging.info("Resetting previous active rolls.")
-            prev_active_rolls.clear()
-            prev_active_rolls.extend(data[5])
-            logging.info(prev_active_rolls)
-            logging.info("Previous active rolls reset.")
+        # Add data to balance_history with the key hour::minute
+        time_key = f"{hour:02d}::{minute:02d}"
+        balance_history[time_key] = f"Balance: ${data[0]}\n"
+
+        # If the node is up and hour is 7, 12 or 21 then send a message
+        if hour == 7 or hour == 12 or hour == 21:
+            tmp_string = NODE_IS_UP + f"\n{balance_history}"
+            for user_id in allowed_user_ids:
+                await application.bot.send_message(chat_id=user_id, text=tmp_string)
+            # Clear the balance_history dictionary after sending the message
+            balance_history.clear()
+
     except Exception as e:
         logging.error(f"Error in periodic_node_ping: {e}")
 
@@ -371,7 +362,6 @@ def main():
     global massa_node_address
     global ninja_key
     global bot_token
-    global prev_active_rolls
     global balance_history
 
     try:
@@ -398,10 +388,6 @@ def main():
             logging.error("Timeout occurred while trying to get the status.")
         else:
             logging.error(f"Error while getting the status: {error_message}")
-        prev_active_rolls = [0] * 6
-    else:
-        prev_active_rolls = list(extract_address_data(json_data)[5])
-    print(prev_active_rolls)
 
     # Use of ApplicationBuilder to create app
     application = Application.builder().token(bot_token).post_init(post_init).build()
