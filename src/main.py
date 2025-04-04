@@ -326,12 +326,22 @@ async def periodic_node_ping(application: Application) -> None:
             error_message = json_data["error"]
             if "timed out" in error_message:
                 logging.error("Timeout occurred while trying to get the status.")
-                for user_id in allowed_user_ids:
-                    await application.bot.reply_photo(chat_id=user_id, photo=('media/' + TIMEOUT_NAME))
+                with open('media/' + TIMEOUT_NAME, "rb") as photo:
+                    for user_id in allowed_user_ids:
+                        await application.bot.send_photo(
+                            chat_id=user_id,
+                            photo=photo,
+                            caption="Timeout occurred while trying to get the status."
+                        )
             else:
-                logging.error(f"Error while getting the status: {error_message}")
-                for user_id in allowed_user_ids:
-                    await application.bot.reply_photo(chat_id=user_id, photo=('media/' + TIMEOUT_FIRE_NAME))
+                logging.error(f"Error while getting the status: {error_message}.")
+                with open('media/' + TIMEOUT_FIRE_NAME, "rb") as photo:
+                    for user_id in allowed_user_ids:
+                        await application.bot.send_photo(
+                            chat_id=user_id,
+                            photo=photo,
+                            caption=f"Error while getting the status: {error_message}."
+                        )
 
         # Extract useful data using the function
         data = extract_address_data(json_data)
@@ -339,6 +349,7 @@ async def periodic_node_ping(application: Application) -> None:
 
         if not data or len(data) < 6:
             logging.error("Invalid data.")
+            await application.bot.send_message(chat_id=user_id, text="Ping failed, invalid data.")
             return
 
         logging.info(f"Extracted data: {data}")
