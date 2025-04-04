@@ -344,11 +344,13 @@ async def periodic_node_ping(application: Application) -> None:
 
         # Add data to balance_history with the key hour::minute
         time_key = f"{hour:02d}::{minute:02d}"
-        balance_history[time_key] = f"Balance: ${data[0]}\n"
+        balance_history[time_key] = f"Balance: {data[0]:.2f}"
 
         # If the node is up and hour is 7, 12 or 21 then send a message
         if hour == 7 or hour == 12 or hour == 21:
-            tmp_string = NODE_IS_UP + f"\n{balance_history}"
+            tmp_string = NODE_IS_UP + "\n" + "\n".join(
+                f"{time_key}: {balance}" for time_key, balance in balance_history.items()
+            )
             for user_id in allowed_user_ids:
                 await application.bot.send_message(chat_id=user_id, text=tmp_string)
             # Clear the balance_history dictionary after sending the message
