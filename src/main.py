@@ -26,10 +26,11 @@ TIMEOUT_FIRE_NAME = "timeout_fire.png"
 
 COMMANDS_LIST = [
     {'id': 0, 'cmd_txt': 'hi', 'cmd_desc': 'Say hi to Robbi'},
-    {'id': 1, 'cmd_txt': 'node', 'cmd_desc': 'Get your node results'},
+    {'id': 1, 'cmd_txt': 'node', 'cmd_desc': 'Get node results'},
     {'id': 2, 'cmd_txt': 'btc', 'cmd_desc': 'Get BTC current price'},
     {'id': 3, 'cmd_txt': 'mas', 'cmd_desc': 'Get MAS current price'},
-    {'id': 4, 'cmd_txt': 'flush', 'cmd_desc': 'Flush local logs'},
+    {'id': 4, 'cmd_txt': 'hist', 'cmd_desc': 'Get node balance history'},
+    {'id': 5, 'cmd_txt': 'flush', 'cmd_desc': 'Flush local logs'},
 ]
 
 NODE_IS_DOWN = 'Node is down'
@@ -172,8 +173,10 @@ async def flush(update: Update, context: CallbackContext) -> None:
         try:
             with open(LOG_FILE_NAME, 'w'):
                 pass
-            message = f"{LOG_FILE_NAME} has been cleared."
+            message = f"{LOG_FILE_NAME} has been cleared and balance history cleared"
             print(message)
+            # Clear the balance_history dictionary after sending the message
+            balance_history.clear()
             await update.message.reply_text(message)
         except IOError as e:
             logging.error(f"Error clearing the log file: {e}")
@@ -181,7 +184,6 @@ async def flush(update: Update, context: CallbackContext) -> None:
     elif not os.path.exists(LOG_FILE_NAME):
         logging.warning(f"Log file {LOG_FILE_NAME} does not exist.")
         await update.message.reply_text(f"Log file {LOG_FILE_NAME} does not exist.")
-
 
 async def btc(update: Update, context: CallbackContext) -> None:
     user_id = str(update.effective_user.id)
@@ -254,6 +256,17 @@ async def mas(update: Update, context: CallbackContext) -> None:
             logging.error(f"Error when /mas : {e}")
             await update.message.reply_text("Nooooo")
             await update.message.reply_photo(photo=('media/' + MAS_CRY_NAME))
+
+async def hist(update: Update, context: CallbackContext) -> None:
+    user_id = str(update.effective_user.id)
+    logging.info(f'User {user_id} used the /hist command.')
+
+    tmp_string = "History" + "\n" + "\n".join(
+        f"{time_key}: {balance}" for time_key, balance in balance_history.items()
+    )
+    logging.info(f"History: {tmp_string}")
+    await update.message.reply_text(tmp_string if user_id in allowed_user_ids else '')
+
 
 HANDLERS = [(cmd['cmd_txt'], globals()[cmd['cmd_txt']]) for cmd in COMMANDS_LIST]
 
@@ -353,8 +366,6 @@ async def periodic_node_ping(application: Application) -> None:
             )
             for user_id in allowed_user_ids:
                 await application.bot.send_message(chat_id=user_id, text=tmp_string)
-            # Clear the balance_history dictionary after sending the message
-            balance_history.clear()
 
     except Exception as e:
         logging.error(f"Error in periodic_node_ping: {e}")
