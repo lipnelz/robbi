@@ -426,8 +426,8 @@ def main():
         else:
             logging.error(f"Error while getting the status: {error_message}")
 
-    # Create the Request object with 10-second timeouts
-    req = HTTPXRequest(connect_timeout=10, read_timeout=10, write_timeout=10)
+    # Create the Request object with 20-second timeouts
+    req = HTTPXRequest(connect_timeout=20, read_timeout=20, write_timeout=20)
 
     # Create the Application using the HTTPXRequest object
     application = Application.builder()\
