@@ -149,7 +149,7 @@ async def node(update: Update, context: CallbackContext) -> None:
             hour, minute, day, month = now.hour, now.minute, now.day, now.month
             # Add data to balance_history with the key day/month-hour:minute
             time_key = f"{day:02d}/{month:02d}-{hour:02d}:{minute:02d}"
-            balance_history[time_key] = f"Balance: {data[0]:.2f}"
+            balance_history[time_key] = f"Balance: {float(data[0]):.2f}"
 
             # Create graph from data and save to PNG_FILE_NAME
             image_path = create_png_plot(data[2], data[4], data[3])
@@ -377,7 +377,7 @@ async def periodic_node_ping(application: Application) -> None:
         hour, minute, day, month = now.hour, now.minute, now.day, now.month
         # Add data to balance_history with the key day/month-hour:minute
         time_key = f"{day:02d}/{month:02d}-{hour:02d}:{minute:02d}"
-        balance_history[time_key] = f"Balance: {data[0]:.2f}"
+        balance_history[time_key] = f"Balance: {float(data[0]):.2f}"
 
         # If the node is up and hour is 7, 12 or 21 then send a message
         if hour == 7 or hour == 12 or hour == 21:
