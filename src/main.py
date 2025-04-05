@@ -157,8 +157,9 @@ async def node(update: Update, context: CallbackContext) -> None:
             if os.path.exists(image_path):
                 try:
                     # Send the image via Telegram with a timeout
-                    await update.message.reply_photo(photo=image_path)
-                except Exception as e:
+                    with open(image_path, 'rb') as image_file:
+                        await update.message.reply_photo(photo=image_file)
+                except FileNotFoundError:
                     logging.error(f"Error while send image : {e}")
                     await update.message.reply_text("Error while send image.")
                 finally:
@@ -277,7 +278,6 @@ async def hist(update: Update, context: CallbackContext) -> None:
         await update.message.reply_text(tmp_string if user_id in allowed_user_ids else '')
     except Exception as error:
         logging.info(f"Error while getting history: {error}")
-
 
 HANDLERS = [(cmd['cmd_txt'], globals()[cmd['cmd_txt']]) for cmd in COMMANDS_LIST]
 
