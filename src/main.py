@@ -144,6 +144,13 @@ async def node(update: Update, context: CallbackContext) -> None:
             print(formatted_string)
             await update.message.reply_text('Node status: ' + formatted_string)
 
+            # Get the current hour and minute
+            now = datetime.now()
+            hour, minute, day, month = now.hour, now.minute, now.day, now.month
+            # Add data to balance_history with the key day/month-hour:minute
+            time_key = f"{day:02d}/{month:02d}-{hour:02d}:{minute:02d}"
+            balance_history[time_key] = f"Balance: {data[0]:.2f}"
+
             # Create graph from data and save to PNG_FILE_NAME
             image_path = create_png_plot(data[2], data[4], data[3])
             # Check if the image file was created successfully
@@ -358,10 +365,6 @@ async def periodic_node_ping(application: Application) -> None:
 
         logging.info(f"Extracted data: {data}")
 
-        # Get the current hour and minute
-        now = datetime.now()
-        hour, minute = now.hour, now.minute
-
         # if nok count set contains a value (data[4]) or roll count is 0 (data[1])
         if any(data[4]) or data[1] == 0:
             for user_id in allowed_user_ids:
@@ -370,8 +373,10 @@ async def periodic_node_ping(application: Application) -> None:
         else:
             logging.info(f"Node is up.")
 
-        # Add data to balance_history with the key hour::minute
-        time_key = f"{hour:02d}::{minute:02d}"
+        now = datetime.now()
+        hour, minute, day, month = now.hour, now.minute, now.day, now.month
+        # Add data to balance_history with the key day/month-hour:minute
+        time_key = f"{day:02d}/{month:02d}-{hour:02d}:{minute:02d}"
         balance_history[time_key] = f"Balance: {data[0]:.2f}"
 
         # If the node is up and hour is 7, 12 or 21 then send a message
