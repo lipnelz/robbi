@@ -414,7 +414,7 @@ def main():
         logging.error(f"Error loading topology.json: {e}")
         return
 
-    #disable_prints()
+    disable_prints() # Comment this line to enable prints DEBUG purpose only
     logging.info("Starting bot...")
 
     # Get node info at bot startup
