@@ -34,9 +34,9 @@ The `topology.json` file describes all the usefull configuration informations fo
 
 - `/mas` : Get MAS/USDT info from MEXC.
 
-- `/hist` : Send the MAS balance history logged from periodic node pings.
+- `/hist` : Send the MAS balance history logged from periodic node pings and manual requests.
 
-- `/flush`: Clean activity debug logs
+- `/flush`: Clean activity debug logs and clean MAS balance history
 
 ## Prerequis
 
