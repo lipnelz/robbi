@@ -9,7 +9,8 @@ import matplotlib.pyplot as plt
 from datetime import datetime
 from typing import Tuple, List
 from telegram import Update, BotCommand
-from telegram.ext import Application, CommandHandler, CallbackContext
+from telegram.ext import Application, CommandHandler, CallbackContext, ContextTypes
+from telegram.request import HTTPXRequest
 from jrequests import get_addresses, get_bitcoin_price, get_mas_instant, get_mas_daily
 from apscheduler.schedulers.background import BackgroundScheduler
 
@@ -265,7 +266,10 @@ async def hist(update: Update, context: CallbackContext) -> None:
         f"{time_key}: {balance}" for time_key, balance in balance_history.items()
     )
     logging.info(f"History: {tmp_string}")
-    await update.message.reply_text(tmp_string if user_id in allowed_user_ids else '')
+    try:
+        await update.message.reply_text(tmp_string if user_id in allowed_user_ids else '')
+    except Exception as error:
+        logging.info(f"Error while getting history: {error}")
 
 
 HANDLERS = [(cmd['cmd_txt'], globals()[cmd['cmd_txt']]) for cmd in COMMANDS_LIST]
@@ -381,6 +385,10 @@ async def periodic_node_ping(application: Application) -> None:
     except Exception as e:
         logging.error(f"Error in periodic_node_ping: {e}")
 
+async def error_handler(update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    logging.error(f"Error handler catch: {context.error}")
+
+
 def main():
     global allowed_user_ids
     global massa_node_address
@@ -401,7 +409,7 @@ def main():
         logging.error(f"Error loading topology.json: {e}")
         return
 
-    disable_prints()
+    #disable_prints()
     logging.info("Starting bot...")
 
     # Get node info at bot startup
@@ -413,12 +421,21 @@ def main():
         else:
             logging.error(f"Error while getting the status: {error_message}")
 
-    # Use of ApplicationBuilder to create app
-    application = Application.builder().token(bot_token).post_init(post_init).build()
+    # Create the Request object with 10-second timeouts
+    req = HTTPXRequest(connect_timeout=10, read_timeout=10, write_timeout=10)
+
+    # Create the Application using the HTTPXRequest object
+    application = Application.builder()\
+        .token(bot_token)\
+        .post_init(post_init)\
+        .request(req)\
+        .build()
 
     # Populate with commands in handlers
     for cmd_txt, handler_func in HANDLERS:
         application.add_handler(CommandHandler(cmd_txt, handler_func))
+
+    application.add_error_handler(error_handler)
 
     # Start the scheduler
     run_async_func(application)
