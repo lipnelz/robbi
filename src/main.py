@@ -386,6 +386,8 @@ async def periodic_node_ping(application: Application) -> None:
             )
             for user_id in allowed_user_ids:
                 await application.bot.send_message(chat_id=user_id, text=tmp_string)
+            if hour == 21:
+                balance_history.clear()
 
     except Exception as e:
         logging.error(f"Error in periodic_node_ping: {e}")
