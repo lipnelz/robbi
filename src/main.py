@@ -11,7 +11,7 @@ from typing import Tuple, List
 from telegram import Update, BotCommand
 from telegram.ext import Application, CommandHandler, CallbackContext, ContextTypes
 from telegram.request import HTTPXRequest
-from jrequests import get_addresses, get_bitcoin_price, get_mas_instant, get_mas_daily
+from jrequests import get_addresses, get_bitcoin_price, get_mas_instant, get_mas_daily, get_system_stats
 from apscheduler.schedulers.background import BackgroundScheduler
 
 
@@ -32,6 +32,7 @@ COMMANDS_LIST = [
     {'id': 3, 'cmd_txt': 'mas', 'cmd_desc': 'Get MAS current price'},
     {'id': 4, 'cmd_txt': 'hist', 'cmd_desc': 'Get node balance history'},
     {'id': 5, 'cmd_txt': 'flush', 'cmd_desc': 'Flush local logs'},
+    {'id': 6, 'cmd_txt': 'temperature', 'cmd_desc': 'Get system temperature, CPU and RAM'},
 ]
 
 NODE_IS_DOWN = 'Node is down'
@@ -265,6 +266,39 @@ async def mas(update: Update, context: CallbackContext) -> None:
             logging.error(f"Error when /mas : {e}")
             await update.message.reply_text("Nooooo")
             await update.message.reply_photo(photo=('media/' + MAS_CRY_NAME))
+
+async def temperature(update: Update, context: CallbackContext) -> None:
+    user_id = str(update.effective_user.id)
+    logging.info(f'User {user_id} used the /temperature command.')
+
+    if user_id in allowed_user_ids:
+        try:
+            stats = get_system_stats(logging)
+            if "error" in stats:
+                error_message = stats["error"]
+                logging.error(f"Error while getting system stats: {error_message}")
+                await update.message.reply_text(f"Error: {error_message}")
+                return
+
+            formatted_string = (
+                f"🌡️ System Status\n"
+                f"-----------\n"
+            )
+            
+            if "temperature_celsius" in stats:
+                formatted_string += f"Temperature: {stats['temperature_celsius']}°C\n"
+            
+            formatted_string += (
+                f"CPU Usage: {stats['cpu_percent']}%\n"
+                f"RAM Usage: {stats['ram_percent']}%\n"
+                f"RAM Available: {stats['ram_available_gb']} GB / {stats['ram_total_gb']} GB"
+            )
+            
+            print(formatted_string)
+            await update.message.reply_text(formatted_string)
+        except Exception as e:
+            logging.error(f"Error when /temperature : {e}")
+            await update.message.reply_text("Error retrieving system stats")
 
 async def hist(update: Update, context: CallbackContext) -> None:
     user_id = str(update.effective_user.id)
