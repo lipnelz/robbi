@@ -619,7 +619,9 @@ async def periodic_node_ping(application: Application) -> None:
         logging.info(f"Extracted data: {data}")
 
         # if nok count set contains a value (data[4]) or roll count is 0 (data[1])
-        if any(data[4]) or data[1] == 0:
+        node_is_up = not (any(data[4]) or data[1] == 0)
+        
+        if not node_is_up:
             for user_id in allowed_user_ids:
                 await application.bot.send_message(chat_id=user_id, text=NODE_IS_DOWN)
             logging.info(f"Node is down.")
@@ -633,15 +635,11 @@ async def periodic_node_ping(application: Application) -> None:
         balance_history[current_time_key] = f"Balance: {float(data[0]):.2f}"
 
         # If the node is up and hour is 7, 12 or 21 then send a message
-        if hour == 7 or hour == 12 or hour == 21:
+        if node_is_up and (hour == 7 or hour == 12 or hour == 21):
             # Calculate balance comparison
             if balance_history:
-                balance_values = []
-                timestamps = []
-                for time_key, balance in balance_history.items():
-                    balance_value = float(balance.split(": ")[1])
-                    balance_values.append(balance_value)
-                    timestamps.append(time_key)
+                timestamps = list(balance_history.keys())
+                balance_values = [float(balance.split(": ")[1]) for balance in balance_history.values()]
                 
                 first_balance = balance_values[0] if balance_values else 0
                 first_timestamp = timestamps[0] if timestamps else "N/A"
