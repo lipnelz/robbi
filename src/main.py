@@ -80,63 +80,58 @@ def extract_address_data(json_data: dict) -> Tuple[str, int, List[int], List[int
     return "", 0, [], [], [], []
 
 def create_png_plot(cycles: List[int], nok_counts: List[int], ok_counts: List[int]) -> str:
-        """
-        Creates a line plot with markers for OK and NOK counts over multiple cycles,
-        and saves the plot as a PNG image.
+    """
+    Creates a line plot with markers for OK and NOK counts over multiple cycles,
+    and saves the plot as a PNG image.
 
-        :param cycles(int): A list or array of integers representing the cycles for which counts are recorded.
-        :param nok_counts(int): A list or array of integers representing the NOK counts for each cycle.
-        :param ok_counts(int): A list or array of integers representing the OK counts for each cycle.
+    :param cycles(int): A list or array of integers representing the cycles for which counts are recorded.
+    :param nok_counts(int): A list or array of integers representing the NOK counts for each cycle.
+    :param ok_counts(int): A list or array of integers representing the OK counts for each cycle.
 
-        :return(str): The file path of the generated PNG image.
-        """
-        plt.figure(figsize=(10, 6))
-        plt.plot(cycles, nok_counts, marker='o', linestyle='-', color='red', label='NOK Counts')
-        plt.plot(cycles, ok_counts, marker='o', linestyle='-', color='blue', label='OK Counts')
-        plt.title('Validation per Cycle')
-        plt.xlabel('Cycle')
-        plt.ylabel('Count')
-        plt.legend()
-        plt.grid(True)
-        plt.savefig(PNG_FILE_NAME)
-        plt.close()
-        return PNG_FILE_NAME
+    :return(str): The file path of the generated PNG image.
+    """
+    plt.figure(figsize=(10, 6))
+    plt.plot(cycles, nok_counts, marker='o', linestyle='-', color='red', label='NOK Counts')
+    plt.plot(cycles, ok_counts, marker='o', linestyle='-', color='blue', label='OK Counts')
+    plt.title('Validation per Cycle')
+    plt.xlabel('Cycle')
+    plt.ylabel('Count')
+    plt.legend()
+    plt.grid(True)
+    plt.savefig(PNG_FILE_NAME)
+    plt.close()
+    return PNG_FILE_NAME
 
 def create_balance_history_plot() -> str:
-        """
-        Creates a line plot of balance history over time and saves it as a PNG image.
+    """
+    Creates a line plot of balance history over time and saves it as a PNG image.
 
-        :return(str): The file path of the generated PNG image.
-        """
-        if not balance_history:
-            return ""
-        
-        # Extract timestamps and balance values
-        timestamps = list(balance_history.keys())
-        balances = []
-        
-        for balance_str in balance_history.values():
-            # Extract numeric value from "Balance: 123.45" format
-            balance_value = float(balance_str.split(": ")[1])
-            balances.append(balance_value)
-        
-        # Create plot
-        plt.figure(figsize=(12, 6))
-        plt.plot(range(len(timestamps)), balances, marker='o', linestyle='-', 
-                 color='green', linewidth=2, markersize=8, label='Balance')
-        plt.title('Balance History Over Time')
-        plt.xlabel('Time')
-        plt.ylabel('Balance')
-        plt.xticks(range(len(timestamps)), timestamps, rotation=45, ha='right')
-        plt.legend()
-        plt.grid(True, alpha=0.3)
-        plt.tight_layout()
-        
-        # Save plot
-        history_plot_name = 'balance_history.png'
-        plt.savefig(history_plot_name)
-        plt.close()
-        return history_plot_name
+    :return(str): The file path of the generated PNG image.
+    """
+    if not balance_history:
+        return ""
+    
+    # Extract timestamps and balance values
+    timestamps = list(balance_history.keys())
+    balances = [float(balance.split(": ")[1]) for balance in balance_history.values()]
+    
+    # Create plot
+    plt.figure(figsize=(12, 6))
+    plt.plot(range(len(timestamps)), balances, marker='o', linestyle='-', 
+             color='green', linewidth=2, markersize=8, label='Balance')
+    plt.title('Balance History Over Time')
+    plt.xlabel('Time')
+    plt.ylabel('Balance')
+    plt.xticks(range(len(timestamps)), timestamps, rotation=45, ha='right')
+    plt.legend()
+    plt.grid(True, alpha=0.3)
+    plt.tight_layout()
+    
+    # Save plot
+    history_plot_name = 'balance_history.png'
+    plt.savefig(history_plot_name)
+    plt.close()
+    return history_plot_name
 
 async def hi(update: Update, context: CallbackContext) -> None:
     user_id = str(update.effective_user.id)
