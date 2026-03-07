@@ -179,3 +179,49 @@ def get_mas_daily(logger) -> dict:
     except requests.RequestException as e:
         logger.error(f"An unexpected error occurred: {e}")
         return {"error": f"Unexpected error: {str(e)}"}
+
+def get_system_stats(logger) -> dict:
+    """
+    Get system statistics (CPU, RAM, Temperature)
+
+    :param logger: The logger instance
+    :return: json dict with system stats
+    """
+    try:
+        import psutil
+    except ImportError:
+        if logger is None:
+            logger = logging.getLogger()
+        logger.error("psutil not installed")
+        return {"error": "psutil library not installed"}
+
+    if logger is None:
+        logger = logging.getLogger()
+
+    try:
+        stats = {
+            "cpu_percent": psutil.cpu_percent(interval=1),
+            "ram_percent": psutil.virtual_memory().percent,
+            "ram_available_gb": round(psutil.virtual_memory().available / (1024 ** 3), 2),
+            "ram_total_gb": round(psutil.virtual_memory().total / (1024 ** 3), 2)
+        }
+
+        # Try to get temperature (Linux only)
+        try:
+            if hasattr(psutil, "sensors_temperatures"):
+                temps = psutil.sensors_temperatures()
+                if temps:
+                    # Get average temperature from available sensors
+                    all_temps = []
+                    for sensor_type, entries in temps.items():
+                        for entry in entries:
+                            all_temps.append(entry.current)
+                    if all_temps:
+                        stats["temperature_celsius"] = round(sum(all_temps) / len(all_temps), 2)
+        except Exception as e:
+            logger.warning(f"Could not retrieve temperature: {e}")
+
+        return stats
+    except Exception as e:
+        logger.error(f"An unexpected error occurred: {e}")
+        return {"error": f"Unexpected error: {str(e)}"}
