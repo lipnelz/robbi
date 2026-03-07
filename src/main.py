@@ -159,7 +159,7 @@ async def node(update: Update, context: CallbackContext) -> None:
                     # Send the image via Telegram with a timeout
                     with open(image_path, 'rb') as image_file:
                         await update.message.reply_photo(photo=image_file)
-                except FileNotFoundError:
+                except FileNotFoundError as e:
                     logging.error(f"Error while send image : {e}")
                     await update.message.reply_text("Error while send image.")
                 finally:
@@ -360,7 +360,8 @@ async def periodic_node_ping(application: Application) -> None:
 
         if not data or len(data) < 6:
             logging.error("Invalid data.")
-            await application.bot.send_message(chat_id=user_id, text="Ping failed, invalid data.")
+            for user_id in allowed_user_ids:
+                await application.bot.send_message(chat_id=user_id, text="Ping failed, invalid data.")
             return
 
         logging.info(f"Extracted data: {data}")

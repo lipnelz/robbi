@@ -108,7 +108,7 @@ def get_bitcoin_price(logger, api_key: str) -> dict:
         logger = logging.getLogger()
 
     try:
-        response = requests.get(url, headers, timeout=20)
+        response = requests.get(url, headers=headers, timeout=20)
         if response.status_code == requests.codes.ok:
             return response.json()
         else:
