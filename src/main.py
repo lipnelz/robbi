@@ -18,6 +18,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 JOB_SCHED_NAME = 'periodic_node_ping'
 LOG_FILE_NAME = 'bot_activity.log'
 FLUSH_CONFIRM_STATE = 1
+HIST_CONFIRM_STATE = 2
 PNG_FILE_NAME = 'plot.png'
 BUDDY_FILE_NAME = 'Buddy_christ.jpg'
 PAT_FILE_NAME = 'patrick.gif'
@@ -406,17 +407,17 @@ async def temperature(update: Update, context: CallbackContext) -> None:
             logging.error(f"Error when /temperature : {e}")
             await update.message.reply_text("Error retrieving system stats")
 
-async def hist(update: Update, context: CallbackContext) -> None:
+async def hist(update: Update, context: CallbackContext) -> int:
     user_id = str(update.effective_user.id)
     logging.info(f'User {user_id} used the /hist command.')
 
     if user_id not in allowed_user_ids:
         await update.message.reply_text("Access denied. You are not authorized.")
-        return
+        return ConversationHandler.END
 
     if not balance_history:
         await update.message.reply_text("No balance history available.")
-        return
+        return ConversationHandler.END
 
     image_path = None
     try:
@@ -426,12 +427,12 @@ async def hist(update: Update, context: CallbackContext) -> None:
         except Exception as e:
             logging.error(f"Error creating balance history plot: {e}")
             await update.message.reply_text("Error creating history graph.")
-            return
+            return ConversationHandler.END
         
         if not image_path or not os.path.exists(image_path):
             logging.error("History image file was not created successfully.")
             await update.message.reply_text("Error creating history image.")
-            return
+            return ConversationHandler.END
         
         try:
             # Send the image via Telegram
@@ -440,12 +441,31 @@ async def hist(update: Update, context: CallbackContext) -> None:
         except (FileNotFoundError, OSError) as e:
             logging.error(f"Error while sending history image : {e}")
             await update.message.reply_text("Error while sending history image.")
+            return ConversationHandler.END
         except Exception as e:
             logging.error(f"Error while sending history image : {e}")
             await update.message.reply_text("Error sending history image.")
+            return ConversationHandler.END
+        
+        # After sending the image, ask if user wants text summary
+        keyboard = [
+            [
+                InlineKeyboardButton("Yes", callback_data='hist_yes'),
+                InlineKeyboardButton("No", callback_data='hist_no')
+            ]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await update.message.reply_text(
+            "Do you also want to receive the balance history as text?",
+            reply_markup=reply_markup
+        )
+        
+        return HIST_CONFIRM_STATE
     except Exception as error:
         logging.error(f"Error in /hist command: {error}")
         await update.message.reply_text("Error retrieving balance history.")
+        return ConversationHandler.END
     finally:
         # Always cleanup the image file
         if image_path:
@@ -456,7 +476,53 @@ async def hist(update: Update, context: CallbackContext) -> None:
             except Exception as e:
                 logging.error(f"Error deleting image file {image_path}: {e}")
 
-HANDLERS = [(cmd['cmd_txt'], globals()[cmd['cmd_txt']]) for cmd in COMMANDS_LIST if cmd['cmd_txt'] != 'flush']
+async def hist_confirm_yes(update: Update, context: CallbackContext) -> int:
+    query = update.callback_query
+    user_id = str(query.from_user.id)
+    logging.info(f'User {user_id} confirmed hist with text summary.')
+    
+    if user_id not in allowed_user_ids:
+        await query.answer("Access denied.", show_alert=True)
+        return ConversationHandler.END
+    
+    try:
+        if not balance_history:
+            await query.answer("Balance history is empty.", show_alert=True)
+            return ConversationHandler.END
+        
+        tmp_string = "History\n" + "\n".join(
+            f"{time_key}: {balance}" for time_key, balance in balance_history.items()
+        )
+        
+        await query.edit_message_text(text="✓ Sending balance history...")
+        await query.message.reply_text(tmp_string)
+        await query.answer()
+        logging.info(f"Sent balance history to user {user_id}")
+    except Exception as e:
+        logging.error(f"Error sending balance history text: {e}")
+        await query.answer("Error sending history text.", show_alert=True)
+    
+    return ConversationHandler.END
+
+async def hist_confirm_no(update: Update, context: CallbackContext) -> int:
+    query = update.callback_query
+    user_id = str(query.from_user.id)
+    logging.info(f'User {user_id} declined hist text summary.')
+    
+    if user_id not in allowed_user_ids:
+        await query.answer("Access denied.", show_alert=True)
+        return ConversationHandler.END
+    
+    try:
+        await query.edit_message_text(text="✓ Done.")
+        await query.answer()
+    except Exception as e:
+        logging.error(f"Error in hist_confirm_no: {e}")
+        await query.answer()
+    
+    return ConversationHandler.END
+
+HANDLERS = [(cmd['cmd_txt'], globals()[cmd['cmd_txt']]) for cmd in COMMANDS_LIST if cmd['cmd_txt'] not in ('flush', 'hist')]
 
 async def post_init(application: Application) -> None:
     commands = [BotCommand(command=cmd['cmd_txt'], description=cmd['cmd_desc']) for cmd in COMMANDS_LIST]
@@ -638,6 +704,19 @@ def main():
         fallbacks=[CommandHandler('flush', flush)]
     )
     application.add_handler(flush_handler)
+
+    # Add ConversationHandler for /hist command
+    hist_handler = ConversationHandler(
+        entry_points=[CommandHandler('hist', hist)],
+        states={
+            HIST_CONFIRM_STATE: [
+                CallbackQueryHandler(hist_confirm_yes, pattern='^hist_yes$'),
+                CallbackQueryHandler(hist_confirm_no, pattern='^hist_no$')
+            ]
+        },
+        fallbacks=[CommandHandler('hist', hist)]
+    )
+    application.add_handler(hist_handler)
 
     application.add_error_handler(error_handler)
 
