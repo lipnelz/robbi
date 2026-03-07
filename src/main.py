@@ -604,6 +604,7 @@ async def periodic_node_ping(application: Application) -> None:
                             )
                     except (FileNotFoundError, OSError) as e:
                         logging.error(f"Error sending fire photo to {user_id}: {e}")
+            return  # Exit early on error
 
         # Extract useful data using the function
         data = extract_address_data(json_data)
@@ -628,14 +629,44 @@ async def periodic_node_ping(application: Application) -> None:
         now = datetime.now()
         hour, minute, day, month = now.hour, now.minute, now.day, now.month
         # Add data to balance_history with the key day/month-hour:minute
-        time_key = f"{day:02d}/{month:02d}-{hour:02d}:{minute:02d}"
-        balance_history[time_key] = f"Balance: {float(data[0]):.2f}"
+        current_time_key = f"{day:02d}/{month:02d}-{hour:02d}:{minute:02d}"
+        balance_history[current_time_key] = f"Balance: {float(data[0]):.2f}"
 
         # If the node is up and hour is 7, 12 or 21 then send a message
         if hour == 7 or hour == 12 or hour == 21:
-            tmp_string = NODE_IS_UP + "\n" + "\n".join(
-                f"{timestamp}: {balance}" for timestamp, balance in balance_history.items()
-            )
+            # Calculate balance comparison
+            if balance_history:
+                balance_values = []
+                timestamps = []
+                for time_key, balance in balance_history.items():
+                    balance_value = float(balance.split(": ")[1])
+                    balance_values.append(balance_value)
+                    timestamps.append(time_key)
+                
+                first_balance = balance_values[0] if balance_values else 0
+                first_timestamp = timestamps[0] if timestamps else "N/A"
+                last_balance = balance_values[-1] if balance_values else 0
+                last_timestamp = timestamps[-1] if timestamps else "N/A"
+                balance_change = last_balance - first_balance
+                change_percent = ((balance_change) / first_balance * 100) if first_balance != 0 else 0
+                
+                # Format the comparison message
+                change_indicator = "📈" if balance_change >= 0 else "📉"
+                tmp_string = (
+                    f"{NODE_IS_UP}\n"
+                    f"\n"
+                    f"💰 Balance Comparison:\n"
+                    f"First: {first_balance:.2f} ({first_timestamp})\n"
+                    f"Current: {last_balance:.2f} ({last_timestamp})\n"
+                    f"Change: {change_indicator} {balance_change:+.2f} ({change_percent:+.2f}%)\n"
+                    f"\n"
+                    f"📊 Full History:\n"
+                    f"{'─' * 40}\n" +
+                    "\n".join(f"{timestamp}: {balance}" for timestamp, balance in balance_history.items())
+                )
+            else:
+                tmp_string = NODE_IS_UP
+            
             for user_id in allowed_user_ids:
                 await application.bot.send_message(chat_id=user_id, text=tmp_string)
 
