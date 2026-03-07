@@ -393,7 +393,18 @@ async def temperature(update: Update, context: CallbackContext) -> None:
                 formatted_string += f"Temperature: {stats['temperature_celsius']}°C\n"
             
             formatted_string += (
-                f"CPU Usage: {stats['cpu_percent']}%\n"
+                f"CPU Usage Global: {stats['cpu_percent']}%\n"
+                f"-----------\n"
+            )
+            
+            # Add per-core CPU usage
+            if "cpu_cores" in stats:
+                formatted_string += f"CPU Cores:\n"
+                for core_info in stats['cpu_cores']:
+                    formatted_string += f"  Core {core_info['core']}: {core_info['percent']}%\n"
+            
+            formatted_string += (
+                f"-----------\n"
                 f"RAM Usage: {stats['ram_percent']}%\n"
                 f"RAM Available: {stats['ram_available_gb']} GB / {stats['ram_total_gb']} GB"
             )
