@@ -8,8 +8,8 @@ import asyncio
 import matplotlib.pyplot as plt
 from datetime import datetime
 from typing import Tuple, List
-from telegram import Update, BotCommand
-from telegram.ext import Application, CommandHandler, CallbackContext, ContextTypes
+from telegram import Update, BotCommand, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import Application, CommandHandler, CallbackContext, ContextTypes, ConversationHandler, CallbackQueryHandler
 from telegram.request import HTTPXRequest
 from jrequests import get_addresses, get_bitcoin_price, get_mas_instant, get_mas_daily, get_system_stats
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -17,6 +17,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 
 JOB_SCHED_NAME = 'periodic_node_ping'
 LOG_FILE_NAME = 'bot_activity.log'
+FLUSH_CONFIRM_STATE = 1
 PNG_FILE_NAME = 'plot.png'
 BUDDY_FILE_NAME = 'Buddy_christ.jpg'
 PAT_FILE_NAME = 'patrick.gif'
@@ -100,6 +101,42 @@ def create_png_plot(cycles: List[int], nok_counts: List[int], ok_counts: List[in
         plt.close()
         return PNG_FILE_NAME
 
+def create_balance_history_plot() -> str:
+        """
+        Creates a line plot of balance history over time and saves it as a PNG image.
+
+        :return(str): The file path of the generated PNG image.
+        """
+        if not balance_history:
+            return ""
+        
+        # Extract timestamps and balance values
+        timestamps = list(balance_history.keys())
+        balances = []
+        
+        for balance_str in balance_history.values():
+            # Extract numeric value from "Balance: 123.45" format
+            balance_value = float(balance_str.split(": ")[1])
+            balances.append(balance_value)
+        
+        # Create plot
+        plt.figure(figsize=(12, 6))
+        plt.plot(range(len(timestamps)), balances, marker='o', linestyle='-', 
+                 color='green', linewidth=2, markersize=8, label='Balance')
+        plt.title('Balance History Over Time')
+        plt.xlabel('Time')
+        plt.ylabel('Balance')
+        plt.xticks(range(len(timestamps)), timestamps, rotation=45, ha='right')
+        plt.legend()
+        plt.grid(True, alpha=0.3)
+        plt.tight_layout()
+        
+        # Save plot
+        history_plot_name = 'balance_history.png'
+        plt.savefig(history_plot_name)
+        plt.close()
+        return history_plot_name
+
 async def hi(update: Update, context: CallbackContext) -> None:
     user_id = str(update.effective_user.id)
     logging.info(f'User {user_id} used the /hi command.')
@@ -113,6 +150,7 @@ async def node(update: Update, context: CallbackContext) -> None:
     logging.info(f'User {user_id} used the /node command.')
 
     if user_id in allowed_user_ids:
+        image_path = None
         try:
             # Get new data
             json_data = get_addresses(logging, massa_node_address)
@@ -120,12 +158,12 @@ async def node(update: Update, context: CallbackContext) -> None:
                 error_message = json_data["error"]
                 if "timed out" in error_message:
                     logging.error("Timeout occurred while trying to get the status.")
-                    for user_id in allowed_user_ids:
-                        await update.message.reply_photo(chat_id=user_id, photo=('media/' + TIMEOUT_NAME))
+                    for notify_user_id in allowed_user_ids:
+                        await update.message.reply_photo(chat_id=notify_user_id, photo=('media/' + TIMEOUT_NAME))
                 else:
                     logging.error(f"Error while getting the status: {error_message}")
-                    for user_id in allowed_user_ids:
-                        await update.message.reply_photo(chat_id=user_id, photo=('media/' + TIMEOUT_FIRE_NAME))
+                    for notify_user_id in allowed_user_ids:
+                        await update.message.reply_photo(chat_id=notify_user_id, photo=('media/' + TIMEOUT_FIRE_NAME))
                 return
 
             # Extract useful data using the function
@@ -155,45 +193,113 @@ async def node(update: Update, context: CallbackContext) -> None:
             # Create graph from data and save to PNG_FILE_NAME
             image_path = create_png_plot(data[2], data[4], data[3])
             # Check if the image file was created successfully
-            if os.path.exists(image_path):
+            if image_path and os.path.exists(image_path):
                 try:
                     # Send the image via Telegram with a timeout
                     with open(image_path, 'rb') as image_file:
                         await update.message.reply_photo(photo=image_file)
-                except FileNotFoundError as e:
+                except (FileNotFoundError, OSError) as e:
                     logging.error(f"Error while send image : {e}")
                     await update.message.reply_text("Error while send image.")
-                finally:
-                    # Delete the image file after sending
-                    os.remove(image_path)
-                    print(f"{image_path} has been deleted.")
             else:
                 logging.error("Image file was not created successfully.")
                 await update.message.reply_text("Image file was not created successfully.")
         except Exception as e:
-                logging.error(f"Error in node /node : {e}")
-                await update.message.reply_text("Arf !")
-                await update.message.reply_photo(photo=('media/' + PAT_FILE_NAME))
+            logging.error(f"Error in node /node : {e}")
+            await update.message.reply_text("Arf !")
+            await update.message.reply_photo(photo=('media/' + PAT_FILE_NAME))
+        finally:
+            # Always cleanup the image file
+            if image_path:
+                try:
+                    if os.path.exists(image_path):
+                        os.remove(image_path)
+                        logging.info(f"{image_path} has been deleted.")
+                except Exception as e:
+                    logging.error(f"Error deleting image file {image_path}: {e}")
 
-async def flush(update: Update, context: CallbackContext) -> None:
+async def flush(update: Update, context: CallbackContext) -> int:
     user_id = str(update.effective_user.id)
     logging.info(f'User {user_id} used the /flush command.')
 
-    if user_id in allowed_user_ids and os.path.exists(LOG_FILE_NAME):
-        try:
-            with open(LOG_FILE_NAME, 'w'):
-                pass
-            message = f"{LOG_FILE_NAME} has been cleared and balance history cleared"
-            print(message)
-            # Clear the balance_history dictionary after sending the message
-            balance_history.clear()
-            await update.message.reply_text(message)
-        except IOError as e:
-            logging.error(f"Error clearing the log file: {e}")
-            await update.message.reply_text("An error occurred while clearing the log file.")
-    elif not os.path.exists(LOG_FILE_NAME):
+    if user_id not in allowed_user_ids:
+        await update.message.reply_text("Access denied. You are not authorized.")
+        return ConversationHandler.END
+
+    if not os.path.exists(LOG_FILE_NAME):
         logging.warning(f"Log file {LOG_FILE_NAME} does not exist.")
         await update.message.reply_text(f"Log file {LOG_FILE_NAME} does not exist.")
+        return ConversationHandler.END
+
+    # Create inline buttons for yes/no confirmation
+    keyboard = [
+        [
+            InlineKeyboardButton("Yes", callback_data='flush_yes'),
+            InlineKeyboardButton("No", callback_data='flush_no')
+        ]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    await update.message.reply_text(
+        "Do you want to clear the balance history as well?\n"
+        "Yes: Clear both logs and balance history\n"
+        "No: Clear only the log file",
+        reply_markup=reply_markup
+    )
+    
+    return FLUSH_CONFIRM_STATE
+
+async def flush_confirm_yes(update: Update, context: CallbackContext) -> int:
+    query = update.callback_query
+    user_id = str(query.from_user.id)
+    logging.info(f'User {user_id} confirmed flush with balance history clear.')
+    
+    if user_id not in allowed_user_ids:
+        await query.answer("Access denied.", show_alert=True)
+        return ConversationHandler.END
+    
+    try:
+        # Clear log file
+        with open(LOG_FILE_NAME, 'w'):
+            pass
+        # Clear balance history
+        balance_history.clear()
+        
+        message = "✓ Log file and balance history have been cleared."
+        logging.info(message)
+        await query.edit_message_text(text=message)
+        await query.answer()
+    except IOError as e:
+        logging.error(f"Error clearing the log file: {e}")
+        await query.edit_message_text(text="An error occurred while clearing the log file.")
+        await query.answer()
+    
+    return ConversationHandler.END
+
+async def flush_confirm_no(update: Update, context: CallbackContext) -> int:
+    query = update.callback_query
+    user_id = str(query.from_user.id)
+    logging.info(f'User {user_id} confirmed flush without balance history clear.')
+    
+    if user_id not in allowed_user_ids:
+        await query.answer("Access denied.", show_alert=True)
+        return ConversationHandler.END
+    
+    try:
+        # Clear log file only
+        with open(LOG_FILE_NAME, 'w'):
+            pass
+        
+        message = "✓ Log file has been cleared (balance history preserved)."
+        logging.info(message)
+        await query.edit_message_text(text=message)
+        await query.answer()
+    except IOError as e:
+        logging.error(f"Error clearing the log file: {e}")
+        await query.edit_message_text(text="An error occurred while clearing the log file.")
+        await query.answer()
+    
+    return ConversationHandler.END
 
 async def btc(update: Update, context: CallbackContext) -> None:
     user_id = str(update.effective_user.id)
@@ -206,12 +312,12 @@ async def btc(update: Update, context: CallbackContext) -> None:
                 error_message = data["error"]
                 if "timed out" in error_message:
                     logging.error("Timeout occurred while trying to get the status.")
-                    for user_id in allowed_user_ids:
-                        await update.message.reply_photo(chat_id=user_id, photo=('media/' + TIMEOUT_NAME))
+                    for notify_user_id in allowed_user_ids:
+                        await update.message.reply_photo(chat_id=notify_user_id, photo=('media/' + TIMEOUT_NAME))
                 else:
                     logging.error(f"Error while getting the status: {error_message}")
-                    for user_id in allowed_user_ids:
-                        await update.message.reply_photo(chat_id=user_id, photo=('media/' + TIMEOUT_FIRE_NAME))
+                    for notify_user_id in allowed_user_ids:
+                        await update.message.reply_photo(chat_id=notify_user_id, photo=('media/' + TIMEOUT_FIRE_NAME))
                 return
 
             formatted_string = (
@@ -241,12 +347,12 @@ async def mas(update: Update, context: CallbackContext) -> None:
                 error_message = current_avg_price["error"] if "error" in current_avg_price else ticker_price_change_stats["error"]
                 if "timed out" in error_message:
                     logging.error("Timeout occurred while trying to get the status.")
-                    for user_id in allowed_user_ids:
-                        await update.message.reply_photo(chat_id=user_id, photo=('media/' + TIMEOUT_NAME))
+                    for notify_user_id in allowed_user_ids:
+                        await update.message.reply_photo(chat_id=notify_user_id, photo=('media/' + TIMEOUT_NAME))
                 else:
                     logging.error(f"Error while getting the status: {error_message}")
-                    for user_id in allowed_user_ids:
-                        await update.message.reply_photo(chat_id=user_id, photo=('media/' + TIMEOUT_FIRE_NAME))
+                    for notify_user_id in allowed_user_ids:
+                        await update.message.reply_photo(chat_id=notify_user_id, photo=('media/' + TIMEOUT_FIRE_NAME))
                 return
 
             formatted_string = (
@@ -304,16 +410,53 @@ async def hist(update: Update, context: CallbackContext) -> None:
     user_id = str(update.effective_user.id)
     logging.info(f'User {user_id} used the /hist command.')
 
-    tmp_string = "History" + "\n" + "\n".join(
-        f"{time_key}: {balance}" for time_key, balance in balance_history.items()
-    )
-    logging.info(f"History: {tmp_string}")
-    try:
-        await update.message.reply_text(tmp_string if user_id in allowed_user_ids else '')
-    except Exception as error:
-        logging.info(f"Error while getting history: {error}")
+    if user_id not in allowed_user_ids:
+        await update.message.reply_text("Access denied. You are not authorized.")
+        return
 
-HANDLERS = [(cmd['cmd_txt'], globals()[cmd['cmd_txt']]) for cmd in COMMANDS_LIST]
+    if not balance_history:
+        await update.message.reply_text("No balance history available.")
+        return
+
+    image_path = None
+    try:
+        # Generate balance history plot
+        try:
+            image_path = create_balance_history_plot()
+        except Exception as e:
+            logging.error(f"Error creating balance history plot: {e}")
+            await update.message.reply_text("Error creating history graph.")
+            return
+        
+        if not image_path or not os.path.exists(image_path):
+            logging.error("History image file was not created successfully.")
+            await update.message.reply_text("Error creating history image.")
+            return
+        
+        try:
+            # Send the image via Telegram
+            with open(image_path, 'rb') as image_file:
+                await update.message.reply_photo(photo=image_file)
+        except (FileNotFoundError, OSError) as e:
+            logging.error(f"Error while sending history image : {e}")
+            await update.message.reply_text("Error while sending history image.")
+        except Exception as e:
+            logging.error(f"Error while sending history image : {e}")
+            await update.message.reply_text("Error sending history image.")
+    except Exception as error:
+        logging.error(f"Error in /hist command: {error}")
+        await update.message.reply_text("Error retrieving balance history.")
+    finally:
+        # Always cleanup the image file
+        if image_path:
+            try:
+                if os.path.exists(image_path):
+                    os.remove(image_path)
+                    logging.info(f"{image_path} has been deleted.")
+            except Exception as e:
+                logging.error(f"Error deleting image file {image_path}: {e}")
+
+HANDLERS = [(cmd['cmd_txt'], globals()[cmd['cmd_txt']]) for cmd in COMMANDS_LIST if cmd['cmd_txt'] != 'flush']
 
 async def post_init(application: Application) -> None:
     commands = [BotCommand(command=cmd['cmd_txt'], description=cmd['cmd_desc']) for cmd in COMMANDS_LIST]
@@ -371,22 +514,30 @@ async def periodic_node_ping(application: Application) -> None:
             error_message = json_data["error"]
             if "timed out" in error_message:
                 logging.error("Timeout occurred while trying to get the status.")
-                with open('media/' + TIMEOUT_NAME, "rb") as photo:
-                    for user_id in allowed_user_ids:
-                        await application.bot.send_photo(
-                            chat_id=user_id,
-                            photo=photo,
-                            caption="Timeout occurred while trying to get the status."
-                        )
+                photo_path = 'media/' + TIMEOUT_NAME
+                for user_id in allowed_user_ids:
+                    try:
+                        with open(photo_path, "rb") as photo:
+                            await application.bot.send_photo(
+                                chat_id=user_id,
+                                photo=photo,
+                                caption="Timeout occurred while trying to get the status."
+                            )
+                    except (FileNotFoundError, OSError) as e:
+                        logging.error(f"Error sending timeout photo to {user_id}: {e}")
             else:
                 logging.error(f"Error while getting the status: {error_message}.")
-                with open('media/' + TIMEOUT_FIRE_NAME, "rb") as photo:
-                    for user_id in allowed_user_ids:
-                        await application.bot.send_photo(
-                            chat_id=user_id,
-                            photo=photo,
-                            caption=f"Error while getting the status: {error_message}."
-                        )
+                photo_path = 'media/' + TIMEOUT_FIRE_NAME
+                for user_id in allowed_user_ids:
+                    try:
+                        with open(photo_path, "rb") as photo:
+                            await application.bot.send_photo(
+                                chat_id=user_id,
+                                photo=photo,
+                                caption=f"Error while getting the status: {error_message}."
+                            )
+                    except (FileNotFoundError, OSError) as e:
+                        logging.error(f"Error sending fire photo to {user_id}: {e}")
 
         # Extract useful data using the function
         data = extract_address_data(json_data)
@@ -417,12 +568,10 @@ async def periodic_node_ping(application: Application) -> None:
         # If the node is up and hour is 7, 12 or 21 then send a message
         if hour == 7 or hour == 12 or hour == 21:
             tmp_string = NODE_IS_UP + "\n" + "\n".join(
-                f"{time_key}: {balance}" for time_key, balance in balance_history.items()
+                f"{timestamp}: {balance}" for timestamp, balance in balance_history.items()
             )
             for user_id in allowed_user_ids:
                 await application.bot.send_message(chat_id=user_id, text=tmp_string)
-            if hour == 21:
-                balance_history.clear()
 
     except Exception as e:
         logging.error(f"Error in periodic_node_ping: {e}")
@@ -476,6 +625,19 @@ def main():
     # Populate with commands in handlers
     for cmd_txt, handler_func in HANDLERS:
         application.add_handler(CommandHandler(cmd_txt, handler_func))
+
+    # Add ConversationHandler for /flush command
+    flush_handler = ConversationHandler(
+        entry_points=[CommandHandler('flush', flush)],
+        states={
+            FLUSH_CONFIRM_STATE: [
+                CallbackQueryHandler(flush_confirm_yes, pattern='^flush_yes$'),
+                CallbackQueryHandler(flush_confirm_no, pattern='^flush_no$')
+            ]
+        },
+        fallbacks=[CommandHandler('flush', flush)]
+    )
+    application.add_handler(flush_handler)
 
     application.add_error_handler(error_handler)
 
