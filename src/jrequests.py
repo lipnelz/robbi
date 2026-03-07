@@ -199,8 +199,13 @@ def get_system_stats(logger) -> dict:
         logger = logging.getLogger()
 
     try:
+        # Get overall CPU and per-core CPU usage
+        cpu_overall = psutil.cpu_percent(interval=1)
+        cpu_per_core = psutil.cpu_percent(interval=1, percpu=True)
+        
         stats = {
-            "cpu_percent": psutil.cpu_percent(interval=1),
+            "cpu_percent": cpu_overall,
+            "cpu_cores": [{"core": i, "percent": percent} for i, percent in enumerate(cpu_per_core)],
             "ram_percent": psutil.virtual_memory().percent,
             "ram_available_gb": round(psutil.virtual_memory().available / (1024 ** 3), 2),
             "ram_total_gb": round(psutil.virtual_memory().total / (1024 ** 3), 2)
