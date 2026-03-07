@@ -137,9 +137,11 @@ async def hi(update: Update, context: CallbackContext) -> None:
     user_id = str(update.effective_user.id)
     logging.info(f'User {user_id} used the /hi command.')
 
-    photo_path = 'media/' + (BUDDY_FILE_NAME if user_id in allowed_user_ids else PAT_FILE_NAME)
-    await update.message.reply_text('Hey dude!' if user_id in allowed_user_ids else '')
-    await update.message.reply_photo(photo=photo_path)
+    if user_id in allowed_user_ids:
+        await update.message.reply_text('Hey dude!')
+        await update.message.reply_photo(photo='media/' + BUDDY_FILE_NAME)
+    else:
+        await update.message.reply_text('You are not authorized to use this bot.')
 
 async def node(update: Update, context: CallbackContext) -> None:
     user_id = str(update.effective_user.id)
@@ -154,12 +156,10 @@ async def node(update: Update, context: CallbackContext) -> None:
                 error_message = json_data["error"]
                 if "timed out" in error_message:
                     logging.error("Timeout occurred while trying to get the status.")
-                    for notify_user_id in allowed_user_ids:
-                        await update.message.reply_photo(chat_id=notify_user_id, photo=('media/' + TIMEOUT_NAME))
+                    await update.message.reply_photo(photo=('media/' + TIMEOUT_NAME))
                 else:
                     logging.error(f"Error while getting the status: {error_message}")
-                    for notify_user_id in allowed_user_ids:
-                        await update.message.reply_photo(chat_id=notify_user_id, photo=('media/' + TIMEOUT_FIRE_NAME))
+                    await update.message.reply_photo(photo=('media/' + TIMEOUT_FIRE_NAME))
                 return
 
             # Extract useful data using the function
@@ -213,6 +213,8 @@ async def node(update: Update, context: CallbackContext) -> None:
                         logging.info(f"{image_path} has been deleted.")
                 except Exception as e:
                     logging.error(f"Error deleting image file {image_path}: {e}")
+    else:
+        await update.message.reply_text("You are not authorized to use this bot.")
 
 async def flush(update: Update, context: CallbackContext) -> int:
     user_id = str(update.effective_user.id)
@@ -308,12 +310,10 @@ async def btc(update: Update, context: CallbackContext) -> None:
                 error_message = data["error"]
                 if "timed out" in error_message:
                     logging.error("Timeout occurred while trying to get the status.")
-                    for notify_user_id in allowed_user_ids:
-                        await update.message.reply_photo(chat_id=notify_user_id, photo=('media/' + TIMEOUT_NAME))
+                    await update.message.reply_photo(photo=('media/' + TIMEOUT_NAME))
                 else:
                     logging.error(f"Error while getting the status: {error_message}")
-                    for notify_user_id in allowed_user_ids:
-                        await update.message.reply_photo(chat_id=notify_user_id, photo=('media/' + TIMEOUT_FIRE_NAME))
+                    await update.message.reply_photo(photo=('media/' + TIMEOUT_FIRE_NAME))
                 return
 
             formatted_string = (
@@ -330,6 +330,8 @@ async def btc(update: Update, context: CallbackContext) -> None:
             logging.error(f"Error when /btc : {e}")
             await update.message.reply_text("Nooooo")
             await update.message.reply_photo(photo=('media/' + BTC_CRY_NAME))
+    else:
+        await update.message.reply_text("You are not authorized to use this bot.")
 
 async def mas(update: Update, context: CallbackContext) -> None:
     user_id = str(update.effective_user.id)
@@ -343,12 +345,10 @@ async def mas(update: Update, context: CallbackContext) -> None:
                 error_message = current_avg_price["error"] if "error" in current_avg_price else ticker_price_change_stats["error"]
                 if "timed out" in error_message:
                     logging.error("Timeout occurred while trying to get the status.")
-                    for notify_user_id in allowed_user_ids:
-                        await update.message.reply_photo(chat_id=notify_user_id, photo=('media/' + TIMEOUT_NAME))
+                    await update.message.reply_photo(photo=('media/' + TIMEOUT_NAME))
                 else:
                     logging.error(f"Error while getting the status: {error_message}")
-                    for notify_user_id in allowed_user_ids:
-                        await update.message.reply_photo(chat_id=notify_user_id, photo=('media/' + TIMEOUT_FIRE_NAME))
+                    await update.message.reply_photo(photo=('media/' + TIMEOUT_FIRE_NAME))
                 return
 
             formatted_string = (
@@ -368,6 +368,8 @@ async def mas(update: Update, context: CallbackContext) -> None:
             logging.error(f"Error when /mas : {e}")
             await update.message.reply_text("Nooooo")
             await update.message.reply_photo(photo=('media/' + MAS_CRY_NAME))
+    else:
+        await update.message.reply_text("You are not authorized to use this bot.")
 
 async def temperature(update: Update, context: CallbackContext) -> None:
     user_id = str(update.effective_user.id)
@@ -401,6 +403,8 @@ async def temperature(update: Update, context: CallbackContext) -> None:
         except Exception as e:
             logging.error(f"Error when /temperature : {e}")
             await update.message.reply_text("Error retrieving system stats")
+    else:
+        await update.message.reply_text("You are not authorized to use this bot.")
 
 async def hist(update: Update, context: CallbackContext) -> int:
     user_id = str(update.effective_user.id)
