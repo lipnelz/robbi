@@ -2,9 +2,7 @@ import os
 import json
 import logging
 from datetime import datetime, timedelta
-
-
-BALANCE_HISTORY_FILE = 'config/balance_history.json'
+from config import BALANCE_HISTORY_FILE
 
 
 def load_balance_history() -> dict:

@@ -23,6 +23,9 @@ TIMEOUT_FIRE_NAME = "timeout_fire.png"
 NODE_IS_DOWN = 'Node is down'
 NODE_IS_UP = 'Node is up and running'
 
+# File paths
+BALANCE_HISTORY_FILE = 'config/balance_history.json'
+
 # Bot commands
 COMMANDS_LIST = [
     {'id': 0, 'cmd_txt': 'hi', 'cmd_desc': 'Say hi to Robbi'},
