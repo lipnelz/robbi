@@ -216,13 +216,18 @@ def get_system_stats(logger) -> dict:
             if hasattr(psutil, "sensors_temperatures"):
                 temps = psutil.sensors_temperatures()
                 if temps:
-                    # Get average temperature from available sensors
-                    all_temps = []
+                    temperature_details = []
                     for sensor_type, entries in temps.items():
                         for entry in entries:
-                            all_temps.append(entry.current)
-                    if all_temps:
-                        stats["temperature_celsius"] = round(sum(all_temps) / len(all_temps), 2)
+                            temperature_details.append({
+                                "sensor": sensor_type,
+                                "label": entry.label or f"Sensor {len(temperature_details)}",
+                                "current": round(entry.current, 1)
+                            })
+                    if temperature_details:
+                        stats["temperature_details"] = temperature_details
+                        all_temps = [t["current"] for t in temperature_details]
+                        stats["temperature_avg"] = round(sum(all_temps) / len(all_temps), 1)
         except Exception as e:
             logger.warning(f"Could not retrieve temperature: {e}")
 
