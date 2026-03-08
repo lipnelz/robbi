@@ -8,7 +8,7 @@ from telegram.request import HTTPXRequest
 from jrequests import get_addresses
 from services.history import load_balance_history
 from config import (
-    JOB_SCHED_NAME, FLUSH_CONFIRM_STATE, HIST_CONFIRM_STATE, COMMANDS_LIST,
+    FLUSH_CONFIRM_STATE, HIST_CONFIRM_STATE, COMMANDS_LIST,
 )
 from handlers.node import node, flush, flush_confirm_yes, flush_confirm_no, hist, hist_confirm_yes, hist_confirm_no
 from handlers.price import btc, mas
