@@ -9,7 +9,7 @@ from handlers.node import extract_address_data
 from services.history import save_balance_history, filter_last_24h
 from config import (
     JOB_SCHED_NAME, NODE_IS_DOWN, NODE_IS_UP,
-    TIMEOUT_NAME, TIMEOUT_FIRE_NAME,
+    TIMEOUT_NAME, TIMEOUT_FIRE_NAME, SCHEDULER_INTERVAL_MINUTES,
 )
 
 
@@ -40,7 +40,7 @@ def run_async_func(application: Application) -> None:
         scheduler.add_job(
             functools.partial(run_coroutine_in_loop, periodic_node_ping, application, loop),
             'interval',
-            minutes=60,
+            minutes=SCHEDULER_INTERVAL_MINUTES,
             id=JOB_SCHED_NAME,
             name=JOB_SCHED_NAME
         )

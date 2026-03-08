@@ -27,6 +27,9 @@ NODE_IS_UP = 'Node is up and running'
 BALANCE_HISTORY_FILE = 'config/balance_history.json'
 PNG_FILE_NAME = 'plot.png'
 
+# Scheduler interval
+SCHEDULER_INTERVAL_MINUTES = 60
+
 # Bot commands
 COMMANDS_LIST = [
     {'id': 0, 'cmd_txt': 'hi', 'cmd_desc': 'Say hi to Robbi'},
