@@ -3,6 +3,7 @@ import logging
 from datetime import datetime
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import CallbackContext, ConversationHandler
+from typing import Tuple, List
 from jrequests import get_addresses
 from handlers.common import auth_required, handle_api_error
 from services.history import save_balance_history
@@ -13,7 +14,7 @@ from config import (
 )
 
 
-def extract_address_data(json_data: dict):
+def extract_address_data(json_data: dict) -> Tuple[str, int, List[int], List[int], List[int], List[int]]:
     """
     Extract useful JSON response data from get_address.
 
