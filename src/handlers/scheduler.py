@@ -61,7 +61,19 @@ def run_coroutine_in_loop(coroutine, application, loop) -> None:
         if loop.is_running():
             # Schedule the coroutine on the running loop from this thread (thread-safe)
             logging.info("Event loop already running, scheduling coroutine.")
-            asyncio.run_coroutine_threadsafe(coroutine(application), loop)
+            future = asyncio.run_coroutine_threadsafe(coroutine(application), loop)
+
+            # Ensure any exceptions raised by the coroutine are logged instead of being silently swallowed
+            def _log_future_exception(f):
+                exc = f.exception()
+                if exc is not None:
+                    logging.error(
+                        "Unhandled exception in scheduled coroutine %s: %s",
+                        getattr(coroutine, "__name__", repr(coroutine)),
+                        exc,
+                    )
+
+            future.add_done_callback(_log_future_exception)
         else:
             # Run synchronously on the idle loop
             logging.info("Running coroutine in a new loop.")
