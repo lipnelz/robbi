@@ -1,4 +1,5 @@
 import logging
+import subprocess
 from telegram import Update
 from telegram.ext import CallbackContext
 from jrequests import get_system_stats
@@ -6,11 +7,24 @@ from handlers.common import auth_required
 from config import BUDDY_FILE_NAME
 
 
+def _get_git_commit_hash() -> str:
+    """Return the short git commit hash, or 'unknown' on failure."""
+    try:
+        return subprocess.check_output(
+            ['git', 'rev-parse', '--short', 'HEAD'],
+            stderr=subprocess.DEVNULL,
+            text=True,
+        ).strip()
+    except Exception:
+        return 'unknown'
+
+
 @auth_required
 async def hi(update: Update, context: CallbackContext) -> None:
     """Handle /hi command: send a greeting message with a fun image."""
     logging.info(f'User {update.effective_user.id} used the /hi command.')
-    await update.message.reply_text('Hey dude!')
+    commit_hash = _get_git_commit_hash()
+    await update.message.reply_text(f'Hey dude! (version: {commit_hash})')
     await update.message.reply_photo(photo=f'media/{BUDDY_FILE_NAME}')
 
 
