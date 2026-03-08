@@ -7,6 +7,7 @@ LABEL version="1.0"
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
     git \
+    procps \
     && rm -rf /var/lib/apt/lists/*
 
 # Set working directory
