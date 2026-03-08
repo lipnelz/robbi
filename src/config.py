@@ -42,9 +42,10 @@ COMMANDS_LIST = [
 ]
 
 # Configure logging module
-logging.basicConfig(
-    filename=LOG_FILE_NAME,
-    filemode='a',
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    level=logging.INFO
-)
+def setup_logging():
+    logging.basicConfig(
+        filename=LOG_FILE_NAME,
+        filemode='a',
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        level=logging.INFO
+    )

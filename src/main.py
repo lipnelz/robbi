@@ -8,7 +8,7 @@ from telegram.request import HTTPXRequest
 from jrequests import get_addresses
 from services.history import load_balance_history
 from config import (
-    FLUSH_CONFIRM_STATE, HIST_CONFIRM_STATE, COMMANDS_LIST,
+    FLUSH_CONFIRM_STATE, HIST_CONFIRM_STATE, COMMANDS_LIST, setup_logging,
 )
 from handlers.node import node, flush, flush_confirm_yes, flush_confirm_no, hist, hist_confirm_yes, hist_confirm_no
 from handlers.price import btc, mas
@@ -43,6 +43,7 @@ async def error_handler(update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 
 def main():
+    setup_logging()
     # Load bot configuration from topology.json
     try:
         with open('topology.json', 'r', encoding='utf-8') as file:
