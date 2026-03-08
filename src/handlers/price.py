@@ -56,7 +56,7 @@ async def mas(update: Update, context: CallbackContext) -> None:
             f"Price: {float(current_avg_price['price']):.5f} USDT\n"
             f"24h Volume: {float(ticker_price_change_stats['volume']):.6f}\n"
             f"-----------\n"
-            f"Price Change: {float(ticker_price_change_stats['priceChangePercent']):.6f}%\n"
+            f"Price Change %: {float(ticker_price_change_stats['priceChangePercent']):.6f}%\n"
             f"Price Change: {float(ticker_price_change_stats['priceChange']):.6f}\n"
             f"24h High: {float(ticker_price_change_stats['highPrice']):.6f}\n"
             f"24h Low: {float(ticker_price_change_stats['lowPrice']):.6f}\n"
