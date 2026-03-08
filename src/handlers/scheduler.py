@@ -142,10 +142,16 @@ async def periodic_node_ping(application: Application) -> None:
 
         # Record current balance snapshot with timestamp
         now = datetime.now()
-        hour, minute, day, month = now.hour, now.minute, now.day, now.month
-        current_time_key = f"{day:02d}/{month:02d}-{hour:02d}:{minute:02d}"
-        balance_history[current_time_key] = f"Balance: {float(data[0]):.2f}"
-        save_balance_history(balance_history)
+        hour, minute, day, month, year = now.hour, now.minute, now.day, now.month, now.year
+        current_time_key = f"{year}/{month:02d}/{day:02d}-{hour:02d}:{minute:02d}"
+        lock = application.bot_data.get('balance_lock')
+        if lock:
+            with lock:
+                balance_history[current_time_key] = f"Balance: {float(data[0]):.2f}"
+                save_balance_history(balance_history)
+        else:
+            balance_history[current_time_key] = f"Balance: {float(data[0]):.2f}"
+            save_balance_history(balance_history)
 
         # Send a detailed status report at scheduled hours (7h, 12h, 21h)
         if node_is_up and hour in (7, 12, 21):

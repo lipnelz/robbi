@@ -39,9 +39,6 @@ async def temperature(update: Update, context: CallbackContext) -> None:
                 formatted_string += f"  {temp_info['sensor']} {temp_info['label']}: {temp_info['current']}°C\n"
             if "temperature_avg" in stats:
                 formatted_string += f"  Average: {stats['temperature_avg']}°C\n"
-        elif "temperature_celsius" in stats:
-            # Fallback: single aggregated temperature value
-            formatted_string += f"Temperature: {stats['temperature_celsius']}°C\n"
 
         formatted_string += (
             f"-----------\n"

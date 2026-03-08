@@ -65,9 +65,11 @@ async def node(update: Update, context: CallbackContext) -> None:
 
         # Record current balance snapshot with timestamp
         now = datetime.now()
-        time_key = f"{now.day:02d}/{now.month:02d}-{now.hour:02d}:{now.minute:02d}"
-        balance_history[time_key] = f"Balance: {float(data[0]):.2f}"
-        save_balance_history(balance_history)
+        time_key = f"{now.year}/{now.month:02d}/{now.day:02d}-{now.hour:02d}:{now.minute:02d}"
+        lock = context.bot_data['balance_lock']
+        with lock:
+            balance_history[time_key] = f"Balance: {float(data[0]):.2f}"
+            save_balance_history(balance_history)
 
         # Generate and send a validation chart (OK/NOK counts per cycle)
         image_path = create_png_plot(data[2], data[4], data[3])
@@ -151,8 +153,10 @@ async def flush_confirm_yes(update: Update, context: CallbackContext) -> int:
             pass
         # Clear the in-memory balance history and persist the empty state
         balance_history = context.bot_data['balance_history']
-        balance_history.clear()
-        save_balance_history(balance_history)
+        lock = context.bot_data['balance_lock']
+        with lock:
+            balance_history.clear()
+            save_balance_history(balance_history)
 
         message = "✓ Log file and balance history have been cleared."
         logging.info(message)
