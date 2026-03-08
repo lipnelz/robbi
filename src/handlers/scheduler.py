@@ -30,11 +30,6 @@ def run_async_func(application: Application) -> None:
 
         scheduler = BackgroundScheduler()
 
-        # Remove any stale job with the same ID
-        if scheduler.get_job(JOB_SCHED_NAME):
-            scheduler.remove_job(JOB_SCHED_NAME)
-            logging.info(f"Previous job {JOB_SCHED_NAME} removed.")
-
         # Schedule periodic_node_ping to run every 60 minutes
         logging.info(f"Add periodic job {JOB_SCHED_NAME}.")
         scheduler.add_job(

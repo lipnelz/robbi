@@ -2,49 +2,6 @@ import requests
 import json
 import logging
 
-def get_status(logger, address: str) -> dict:
-    """
-    Print the status from a given address
-
-    :param logger: The logger instance
-    :param address: The address to querry.
-    :return: json string encoded due to 'None' value returned by remote server
-    """
-    # Define API and URL
-    url = 'https://mainnet.massa.net/api/v2'
-    headers = {
-        'Content-Type': 'application/json'
-    }
-    data = {
-        "jsonrpc": "2.0",
-        "id": 1,
-        "method": "get_status",
-         "params": []
-    }
-
-    if logger is None:
-        logger = logging.getLogger()
-    try:
-        # Send POST request
-        response = requests.post(url, headers=headers, data=json.dumps(data), timeout=20)
-        # Check response status
-        if response.status_code == requests.codes.ok:
-            cleaned_response = json.dumps(response.json(), indent=4).rstrip('None\n').strip()
-            data = json.loads(cleaned_response)
-            print(data)
-            return data
-        else:
-            logger.error(f"Error: {response.status_code}")
-    except requests.Timeout:
-        logger.error("Request timed out. The server took too long to respond.")
-        return {"error": "Request timed out. The server took too long to respond."}
-    except requests.ConnectionError:
-        logger.error("Failed to establish a connection to the server.")
-        return {"error": "Connection error. Unable to reach the server."}
-    except requests.RequestException as e:
-        logger.error(f"An unexpected error occurred: {e}")
-        return {"error": f"Unexpected error: {str(e)}"}
-
 def get_addresses(logger, address: str) -> dict:
     """
     Print the address info from a given address
@@ -75,7 +32,7 @@ def get_addresses(logger, address: str) -> dict:
         if response.status_code == requests.codes.ok:
             # Parse JSON
             response_json = response.json()
-            print(json.dumps(response_json, indent=4))
+            logger.debug("get_addresses response: %s", json.dumps(response_json, indent=4))
             return response_json
         else:
             logger.error(f"Error: {response.status_code}")

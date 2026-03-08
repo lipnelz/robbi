@@ -5,6 +5,7 @@ from typing import List
 
 
 PNG_FILE_NAME = 'plot.png'
+BALANCE_HISTORY_PNG_FILE_NAME = 'balance_history.png'
 
 
 def create_png_plot(cycles: List[int], nok_counts: List[int], ok_counts: List[int]) -> str:
@@ -57,7 +58,6 @@ def create_balance_history_plot(balance_history: dict) -> str:
     plt.tight_layout()
 
     # Save plot
-    history_plot_name = 'balance_history.png'
-    plt.savefig(history_plot_name)
+    plt.savefig(BALANCE_HISTORY_PNG_FILE_NAME)
     plt.close()
-    return history_plot_name
+    return BALANCE_HISTORY_PNG_FILE_NAME
