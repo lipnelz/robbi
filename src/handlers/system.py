@@ -20,7 +20,7 @@ async def temperature(update: Update, context: CallbackContext) -> None:
     logging.info(f'User {update.effective_user.id} used the /temperature command.')
 
     try:
-        stats = get_system_stats(logging)
+        stats = get_system_stats()
         if "error" in stats:
             error_message = stats["error"]
             logging.error(f"Error while getting system stats: {error_message}")

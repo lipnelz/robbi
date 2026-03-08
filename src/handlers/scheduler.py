@@ -92,7 +92,7 @@ async def periodic_node_ping(application: Application) -> None:
 
     try:
         # Fetch node data via JSON-RPC
-        json_data = get_addresses(logging, massa_node_address)
+        json_data = get_addresses(massa_node_address)
         if "error" in json_data:
             error_message = json_data["error"]
             # Pick the appropriate error image

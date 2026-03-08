@@ -14,7 +14,7 @@ async def btc(update: Update, context: CallbackContext) -> None:
 
     try:
         # Fetch BTC price data from API-Ninjas
-        data = get_bitcoin_price(logging, ninja_key)
+        data = get_bitcoin_price(ninja_key)
         if await handle_api_error(update, data):
             return
 
@@ -41,8 +41,8 @@ async def mas(update: Update, context: CallbackContext) -> None:
 
     try:
         # Fetch both instant price and 24h statistics from MEXC
-        current_avg_price = get_mas_instant(logging)
-        ticker_price_change_stats = get_mas_daily(logging)
+        current_avg_price = get_mas_instant()
+        ticker_price_change_stats = get_mas_daily()
 
         # Check both responses for errors (bail on first error)
         for resp in (current_avg_price, ticker_price_change_stats):

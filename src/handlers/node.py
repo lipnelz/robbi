@@ -43,7 +43,7 @@ async def node(update: Update, context: CallbackContext) -> None:
     image_path = None
     try:
         # Fetch node data via JSON-RPC
-        json_data = get_addresses(logging, massa_node_address)
+        json_data = get_addresses(massa_node_address)
         if await handle_api_error(update, json_data):
             return
 

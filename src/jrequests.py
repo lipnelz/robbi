@@ -2,11 +2,10 @@ import requests
 import json
 import logging
 
-def get_status(logger, address: str) -> dict:
+def get_status(address: str) -> dict:
     """
     Print the status from a given address
 
-    :param logger: The logger instance
     :param address: The address to querry.
     :return: json string encoded due to 'None' value returned by remote server
     """
@@ -22,8 +21,6 @@ def get_status(logger, address: str) -> dict:
          "params": []
     }
 
-    if logger is None:
-        logger = logging.getLogger()
     try:
         # Send POST request
         response = requests.post(url, headers=headers, data=json.dumps(data), timeout=20)
@@ -34,22 +31,21 @@ def get_status(logger, address: str) -> dict:
             print(data)
             return data
         else:
-            logger.error(f"Error: {response.status_code}")
+            logging.error(f"Error: {response.status_code}")
     except requests.Timeout:
-        logger.error("Request timed out. The server took too long to respond.")
+        logging.error("Request timed out. The server took too long to respond.")
         return {"error": "Request timed out. The server took too long to respond."}
     except requests.ConnectionError:
-        logger.error("Failed to establish a connection to the server.")
+        logging.error("Failed to establish a connection to the server.")
         return {"error": "Connection error. Unable to reach the server."}
     except requests.RequestException as e:
-        logger.error(f"An unexpected error occurred: {e}")
+        logging.error(f"An unexpected error occurred: {e}")
         return {"error": f"Unexpected error: {str(e)}"}
 
-def get_addresses(logger, address: str) -> dict:
+def get_addresses(address: str) -> dict:
     """
     Print the address info from a given address
 
-    :param logger: The logger instance
     :param address: The address to querry.
     :return: json dict with all info
     """
@@ -65,9 +61,6 @@ def get_addresses(logger, address: str) -> dict:
          "params": [[address]]
     }
 
-    if logger is None:
-        logger = logging.getLogger()
-
     try:
         # Send POST request
         response = requests.post(url, headers=headers, data=json.dumps(data), timeout=20)
@@ -78,23 +71,22 @@ def get_addresses(logger, address: str) -> dict:
             print(json.dumps(response_json, indent=4))
             return response_json
         else:
-            logger.error(f"Error: {response.status_code}")
+            logging.error(f"Error: {response.status_code}")
             return {"error": "Status code not handled."}
     except requests.Timeout:
-        logger.error("Request timed out. The server took too long to respond.")
+        logging.error("Request timed out. The server took too long to respond.")
         return {"error": "Request timed out. The server took too long to respond."}
     except requests.ConnectionError:
-        logger.error("Failed to establish a connection to the server.")
+        logging.error("Failed to establish a connection to the server.")
         return {"error": "Connection error. Unable to reach the server."}
     except requests.RequestException as e:
-        logger.error(f"An unexpected error occurred: {e}")
+        logging.error(f"An unexpected error occurred: {e}")
         return {"error": f"Unexpected error: {str(e)}"}
 
-def get_bitcoin_price(logger, api_key: str) -> dict:
+def get_bitcoin_price(api_key: str) -> dict:
     """
     Get bitcoin price
 
-    :param logger: The logger instance
     :param api_key: Ninja api key as string
     :return: json string encoded with btc price
     """
@@ -103,100 +95,84 @@ def get_bitcoin_price(logger, api_key: str) -> dict:
     headers = {
         'X-Api-Key': api_key
     }
-    # Use the provided logger or default to the logging module's root logger
-    if logger is None:
-        logger = logging.getLogger()
 
     try:
         response = requests.get(url, headers=headers, timeout=20)
         if response.status_code == requests.codes.ok:
             return response.json()
         else:
-            logger.error(f"Error retrieving Bitcoin price: {response.status_code}")
+            logging.error(f"Error retrieving Bitcoin price: {response.status_code}")
             return {"error": "Status code not handled."}
     except requests.Timeout:
-        logger.error("Request timed out. The server took too long to respond.")
+        logging.error("Request timed out. The server took too long to respond.")
         return {"error": "Request timed out. The server took too long to respond."}
     except requests.ConnectionError:
-        logger.error("Failed to establish a connection to the server.")
+        logging.error("Failed to establish a connection to the server.")
         return {"error": "Connection error. Unable to reach the server."}
     except requests.RequestException as e:
-        logger.error(f"An unexpected error occurred: {e}")
+        logging.error(f"An unexpected error occurred: {e}")
         return {"error": f"Unexpected error: {str(e)}"}
 
-def get_mas_instant(logger) -> dict:
+def get_mas_instant() -> dict:
     """
     Current MAS Average Price
 
-    :param logger: The logger instance
     :return: json string encoded MAS/USDT current price
     """
     url = 'https://api.mexc.com/api/v3/avgPrice?symbol=MASUSDT'
-    if logger is None:
-        logger = logging.getLogger()
     try:
         response = requests.get(url, timeout=20)
         if response.status_code == requests.codes.ok:
             return response.json()
         else:
-            logger.error(f"Error retrieving MAS price: {response.status_code}")
+            logging.error(f"Error retrieving MAS price: {response.status_code}")
             return {"error": "Status code not handled."}
     except requests.Timeout:
-        logger.error("Request timed out. The server took too long to respond.")
+        logging.error("Request timed out. The server took too long to respond.")
         return {"error": "Request timed out. The server took too long to respond."}
     except requests.ConnectionError:
-        logger.error("Failed to establish a connection to the server.")
+        logging.error("Failed to establish a connection to the server.")
         return {"error": "Connection error. Unable to reach the server."}
     except requests.RequestException as e:
-        logger.error(f"An unexpected error occurred: {e}")
+        logging.error(f"An unexpected error occurred: {e}")
         return {"error": f"Unexpected error: {str(e)}"}
 
-def get_mas_daily(logger) -> dict:
+def get_mas_daily() -> dict:
     """
     Get 24hr Ticker MAS Price Change Statistics
 
-    :param logger: The logger instance
-    :param api_key: Ninja api key as string
     :return: json with MAS/USDT info on a period of 24hr
     """
     url = 'https://api.mexc.com/api/v3/ticker/24hr?symbol=MASUSDT'
 
-    if logger is None:
-        logger = logging.getLogger()
     try:
         response = requests.get(url, timeout=20)
         if response.status_code == requests.codes.ok:
             return response.json()
         else:
-            logger.error(f"Error retrieving 24hr MAS info: {response.status_code}")
+            logging.error(f"Error retrieving 24hr MAS info: {response.status_code}")
             return {"error": "Status code not handled."}
     except requests.Timeout:
-        logger.error("Request timed out. The server took too long to respond.")
+        logging.error("Request timed out. The server took too long to respond.")
         return {"error": "Request timed out. The server took too long to respond."}
     except requests.ConnectionError:
-        logger.error("Failed to establish a connection to the server.")
+        logging.error("Failed to establish a connection to the server.")
         return {"error": "Connection error. Unable to reach the server."}
     except requests.RequestException as e:
-        logger.error(f"An unexpected error occurred: {e}")
+        logging.error(f"An unexpected error occurred: {e}")
         return {"error": f"Unexpected error: {str(e)}"}
 
-def get_system_stats(logger) -> dict:
+def get_system_stats() -> dict:
     """
     Get system statistics (CPU, RAM, Temperature)
 
-    :param logger: The logger instance
     :return: json dict with system stats
     """
     try:
         import psutil
     except ImportError:
-        if logger is None:
-            logger = logging.getLogger()
-        logger.error("psutil not installed")
+        logging.error("psutil not installed")
         return {"error": "psutil library not installed"}
-
-    if logger is None:
-        logger = logging.getLogger()
 
     try:
         # Get overall CPU and per-core CPU usage
@@ -229,9 +205,9 @@ def get_system_stats(logger) -> dict:
                         all_temps = [t["current"] for t in temperature_details]
                         stats["temperature_avg"] = round(sum(all_temps) / len(all_temps), 1)
         except Exception as e:
-            logger.warning(f"Could not retrieve temperature: {e}")
+            logging.warning(f"Could not retrieve temperature: {e}")
 
         return stats
     except Exception as e:
-        logger.error(f"An unexpected error occurred: {e}")
+        logging.error(f"An unexpected error occurred: {e}")
         return {"error": f"Unexpected error: {str(e)}"}
