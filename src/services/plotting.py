@@ -1,5 +1,3 @@
-import os
-import logging
 import matplotlib.pyplot as plt
 from typing import List
 
