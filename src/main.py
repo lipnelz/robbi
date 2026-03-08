@@ -6,7 +6,7 @@ import logging
 import functools
 import asyncio
 import matplotlib.pyplot as plt
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Tuple, List
 from telegram import Update, BotCommand, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackContext, ContextTypes, ConversationHandler, CallbackQueryHandler
@@ -26,6 +26,7 @@ BTC_CRY_NAME = "btc_cry.png"
 MAS_CRY_NAME = "mas_cry.png"
 TIMEOUT_NAME = "timeout.png"
 TIMEOUT_FIRE_NAME = "timeout_fire.png"
+BALANCE_HISTORY_FILE = 'config/balance_history.json'
 
 COMMANDS_LIST = [
     {'id': 0, 'cmd_txt': 'hi', 'cmd_desc': 'Say hi to Robbi'},
@@ -60,6 +61,43 @@ def disable_prints() -> None:
     sys.stdout = io.StringIO()
     # Redirect stderr to a string stream to suppress error messages
     sys.stderr = io.StringIO()
+
+def load_balance_history() -> dict:
+    """Load balance history from JSON file."""
+    if os.path.exists(BALANCE_HISTORY_FILE):
+        try:
+            with open(BALANCE_HISTORY_FILE, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except (json.JSONDecodeError, IOError) as e:
+            logging.error(f"Error loading balance history: {e}")
+    return {}
+
+def save_balance_history() -> None:
+    """Save balance history to JSON file."""
+    try:
+        os.makedirs(os.path.dirname(BALANCE_HISTORY_FILE), exist_ok=True)
+        with open(BALANCE_HISTORY_FILE, 'w', encoding='utf-8') as f:
+            json.dump(balance_history, f, indent=2)
+    except IOError as e:
+        logging.error(f"Error saving balance history: {e}")
+
+def filter_last_24h(history: dict) -> dict:
+    """Filter balance history to only keep entries from the last 24 hours."""
+    now = datetime.now()
+    cutoff = now - timedelta(hours=24)
+    current_year = now.year
+    filtered = {}
+    for key, value in history.items():
+        try:
+            dt = datetime.strptime(key, "%d/%m-%H:%M").replace(year=current_year)
+            # Handle year boundary (entry looks like it's in the future = last year)
+            if dt > now + timedelta(hours=1):
+                dt = dt.replace(year=current_year - 1)
+            if dt >= cutoff:
+                filtered[key] = value
+        except ValueError:
+            continue
+    return filtered
 
 def extract_address_data(json_data: dict) -> Tuple[str, int, List[int], List[int], List[int], List[int]]:
     """
@@ -185,6 +223,7 @@ async def node(update: Update, context: CallbackContext) -> None:
             # Add data to balance_history with the key day/month-hour:minute
             time_key = f"{day:02d}/{month:02d}-{hour:02d}:{minute:02d}"
             balance_history[time_key] = f"Balance: {float(data[0]):.2f}"
+            save_balance_history()
 
             # Create graph from data and save to PNG_FILE_NAME
             image_path = create_png_plot(data[2], data[4], data[3])
@@ -262,6 +301,7 @@ async def flush_confirm_yes(update: Update, context: CallbackContext) -> int:
             pass
         # Clear balance history
         balance_history.clear()
+        save_balance_history()
         
         message = "✓ Log file and balance history have been cleared."
         logging.info(message)
@@ -389,10 +429,18 @@ async def temperature(update: Update, context: CallbackContext) -> None:
                 f"-----------\n"
             )
             
-            if "temperature_celsius" in stats:
+            # Add per-sensor temperature details
+            if "temperature_details" in stats:
+                formatted_string += "🌡️ Temperatures:\n"
+                for temp_info in stats['temperature_details']:
+                    formatted_string += f"  {temp_info['sensor']} {temp_info['label']}: {temp_info['current']}°C\n"
+                if "temperature_avg" in stats:
+                    formatted_string += f"  Average: {stats['temperature_avg']}°C\n"
+            elif "temperature_celsius" in stats:
                 formatted_string += f"Temperature: {stats['temperature_celsius']}°C\n"
             
             formatted_string += (
+                f"-----------\n"
                 f"CPU Usage Global: {stats['cpu_percent']}%\n"
                 f"-----------\n"
             )
@@ -643,6 +691,7 @@ async def periodic_node_ping(application: Application) -> None:
         # Add data to balance_history with the key day/month-hour:minute
         current_time_key = f"{day:02d}/{month:02d}-{hour:02d}:{minute:02d}"
         balance_history[current_time_key] = f"Balance: {float(data[0]):.2f}"
+        save_balance_history()
 
         # If the node is up and hour is 7, 12 or 21 then send a message
         if node_is_up and (hour == 7 or hour == 12 or hour == 21):
@@ -658,6 +707,9 @@ async def periodic_node_ping(application: Application) -> None:
                 balance_change = last_balance - first_balance
                 change_percent = ((balance_change) / first_balance * 100) if first_balance != 0 else 0
                 
+                # Filter to last 24h for display
+                recent_history = filter_last_24h(balance_history)
+                
                 # Format the comparison message
                 change_indicator = "📈" if balance_change >= 0 else "📉"
                 tmp_string = (
@@ -668,9 +720,10 @@ async def periodic_node_ping(application: Application) -> None:
                     f"Current: {last_balance:.2f} ({last_timestamp})\n"
                     f"Change: {change_indicator} {balance_change:+.2f} ({change_percent:+.2f}%)\n"
                     f"\n"
-                    f"📊 Full History:\n"
+                    f"📊 Last 24h History:\n"
                     f"{'─' * 40}\n" +
-                    "\n".join(f"{timestamp}: {balance}" for timestamp, balance in balance_history.items())
+                    ("\n".join(f"{timestamp}: {balance}" for timestamp, balance in recent_history.items())
+                     if recent_history else "No data in the last 24h.")
                 )
             else:
                 tmp_string = NODE_IS_UP
@@ -704,6 +757,8 @@ def main():
     except (FileNotFoundError, json.JSONDecodeError) as e:
         logging.error(f"Error loading topology.json: {e}")
         return
+
+    balance_history = load_balance_history()
 
     disable_prints() # Comment this line to enable prints DEBUG purpose only
     logging.info("Starting bot...")
