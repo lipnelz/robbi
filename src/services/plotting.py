@@ -1,8 +1,6 @@
 import matplotlib.pyplot as plt
 from typing import List
-
-
-PNG_FILE_NAME = 'plot.png'
+from config import PNG_FILE_NAME
 
 
 def create_png_plot(cycles: List[int], nok_counts: List[int], ok_counts: List[int]) -> str:

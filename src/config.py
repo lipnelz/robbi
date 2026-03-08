@@ -25,6 +25,7 @@ NODE_IS_UP = 'Node is up and running'
 
 # File paths
 BALANCE_HISTORY_FILE = 'config/balance_history.json'
+PNG_FILE_NAME = 'plot.png'
 
 # Bot commands
 COMMANDS_LIST = [
