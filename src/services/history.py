@@ -35,7 +35,8 @@ def save_balance_history(balance_history: dict) -> None:
 
 def filter_last_24h(history: dict) -> dict:
     """Filter balance history to only keep entries from the last 24 hours.
-    Keys are in "DD/MM-HH:MM" format (no year), so the current year is inferred.
+    Keys are in "YYYY/MM/DD-HH:MM" format (with year).
+    Legacy keys in "DD/MM-HH:MM" format are also supported.
     """
     now = datetime.now()
     cutoff = now - timedelta(hours=24)
@@ -43,14 +44,16 @@ def filter_last_24h(history: dict) -> dict:
     filtered = {}
     for key, value in history.items():
         try:
-            # Parse the timestamp and inject the current year
-            dt = datetime.strptime(key, "%d/%m-%H:%M").replace(year=current_year)
-            # Handle year boundary: if parsed date is in the future, it's from last year
-            if dt > now + timedelta(hours=1):
-                dt = dt.replace(year=current_year - 1)
-            if dt >= cutoff:
-                filtered[key] = value
+            # Try new format first: YYYY/MM/DD-HH:MM
+            dt = datetime.strptime(key, "%Y/%m/%d-%H:%M")
         except ValueError:
-            # Skip entries with unexpected key format
-            continue
+            try:
+                # Fallback to legacy format: DD/MM-HH:MM
+                dt = datetime.strptime(key, "%d/%m-%H:%M").replace(year=current_year)
+                if dt > now + timedelta(hours=1):
+                    dt = dt.replace(year=current_year - 1)
+            except ValueError:
+                continue
+        if dt >= cutoff:
+            filtered[key] = value
     return filtered

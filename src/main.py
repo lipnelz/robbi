@@ -2,6 +2,7 @@ import io
 import sys
 import json
 import logging
+import threading
 from telegram import BotCommand
 from telegram.ext import Application, CommandHandler, ContextTypes, ConversationHandler, CallbackQueryHandler
 from telegram.request import HTTPXRequest
@@ -53,7 +54,11 @@ def main():
 
     # Extract credentials and settings from configuration
     bot_token = config.get('telegram_bot_token')
-    allowed_user_ids = {str(config.get('user_white_list', {}).get('admin'))}
+    admin_id = config.get('user_white_list', {}).get('admin')
+    if not bot_token or admin_id is None:
+        logging.error("Missing required config: 'telegram_bot_token' or 'user_white_list.admin'")
+        return
+    allowed_user_ids = {str(admin_id)}
     massa_node_address = config.get('massa_node_address')
     ninja_key = config.get('ninja_api_key')
 
@@ -86,6 +91,7 @@ def main():
     application.bot_data['massa_node_address'] = massa_node_address
     application.bot_data['ninja_key'] = ninja_key
     application.bot_data['balance_history'] = balance_history
+    application.bot_data['balance_lock'] = threading.Lock()
 
     # Register simple command handlers (one function per command)
     for cmd in COMMANDS_LIST:

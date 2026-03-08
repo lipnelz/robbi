@@ -1,4 +1,5 @@
 import logging
+import asyncio
 from telegram import Update
 from telegram.ext import CallbackContext
 from jrequests import get_bitcoin_price, get_mas_instant, get_mas_daily
@@ -40,9 +41,12 @@ async def mas(update: Update, context: CallbackContext) -> None:
     logging.info(f'User {update.effective_user.id} used the /mas command.')
 
     try:
-        # Fetch both instant price and 24h statistics from MEXC
-        current_avg_price = get_mas_instant(logging)
-        ticker_price_change_stats = get_mas_daily(logging)
+        # Fetch both instant price and 24h statistics from MEXC in parallel
+        loop = asyncio.get_running_loop()
+        current_avg_price, ticker_price_change_stats = await asyncio.gather(
+            loop.run_in_executor(None, get_mas_instant, logging),
+            loop.run_in_executor(None, get_mas_daily, logging),
+        )
 
         # Check both responses for errors (bail on first error)
         for resp in (current_avg_price, ticker_price_change_stats):
