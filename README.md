@@ -116,7 +116,10 @@ Activity is logged to `bot_activity.log`.
 ## Notes on Operation
 
 - **Periodic pings** — Every 60 minutes, the bot checks the Massa node and records the balance
-- **Scheduled reports** — At 7:00, 12:00, and 21:00 (if node is up), sends a balance comparison with the last 24h history
+- **Scheduled reports** — At 7:00, 12:00, and 21:00 (if node is up), sends a detailed status report including:
+  - Balance comparison: first recorded vs current value
+  - Change amount and percentage (📈/📉 indicators)
+  - Last 24h balance history
 - **Graph cleanup** — Charts are deleted after being sent to the user
 - **Error handling** — API timeouts and errors are logged and reported with appropriate feedback images
 
