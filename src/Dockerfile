@@ -19,7 +19,8 @@ RUN git clone https://github.com/lipnelz/robbi.git . && \
 
 # Install Python dependencies
 RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt
+    pip install --no-cache-dir -r requirements.txt && \
+    pip install --no-cache-dir docker==7.1.0
 
 # Create config directory
 RUN mkdir -p /app/config
