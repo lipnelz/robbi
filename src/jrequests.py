@@ -199,7 +199,7 @@ def stop_docker_node(logger, container_name: str) -> dict:
     Stop a Docker container running the Massa node.
     
     :param logger: The logger instance
-    :param container_name: Name of the Docker container (e.g., 'massa-node')
+    :param container_name: Name of the Docker container (e.g., 'massa-container')
     :return: dict with status and message
     """
     if logger is None:
@@ -233,7 +233,7 @@ def exec_massa_client(logger, container_name: str, password: str, command: str) 
         client = _get_docker_client()
         container = client.containers.get(container_name)
         cmd = ['./massa-client', '-p', password, '-a', command]
-        exit_code, output = container.exec_run(cmd)
+        exit_code, output = container.exec_run(cmd, workdir='/massa/massa-client')
         decoded = output.decode('utf-8', errors='replace').strip()
         if exit_code == 0:
             logger.info(f"massa-client command '{command}' executed successfully.")
