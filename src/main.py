@@ -65,7 +65,7 @@ def main():
     allowed_user_ids = {str(admin_id)}
     massa_node_address = config.get('massa_node_address')
     ninja_key = config.get('ninja_api_key')
-    docker_container_name = config.get('docker_container_name', 'massa-node')
+    docker_container_name = config.get('docker_container_name', 'massa-container')
     massa_client_password = config.get('massa_client_password', '')
     massa_wallet_address = config.get('massa_wallet_address', '')
     massa_buy_rolls_fee = config.get('massa_buy_rolls_fee', 0.01)

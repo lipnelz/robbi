@@ -48,7 +48,7 @@ The `topology.json` file (placed at the repository root) provides all configurat
     },
     "massa_node_address": "YOUR_MASSA_ADDRESS",
     "ninja_api_key": "YOUR_NINJA_API_KEY",
-    "docker_container_name": "massa-node",
+    "docker_container_name": "massa-container",
     "massa_client_password": "YOUR_MASSA_CLIENT_PASSWORD",
     "massa_wallet_address": "YOUR_MASSA_WALLET_ADDRESS",
     "massa_buy_rolls_fee": 0.01
@@ -61,7 +61,7 @@ The `topology.json` file (placed at the repository root) provides all configurat
 | `user_white_list.admin` | Telegram user ID authorized to use the bot |
 | `massa_node_address` | Massa wallet address for node monitoring |
 | `ninja_api_key` | API-Ninjas key for Bitcoin price |
-| `docker_container_name` | Name of the Docker container running the Massa node (default: `massa-node`) |
+| `docker_container_name` | Name of the Docker container running the Massa node (default: `massa-container`) |
 | `massa_client_password` | Password for `./massa-client -p` |
 | `massa_wallet_address` | Wallet address used for buy_rolls / sell_rolls commands |
 | `massa_buy_rolls_fee` | Fee for buy/sell rolls transactions (default: `0.01`) |
