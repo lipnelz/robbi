@@ -166,6 +166,12 @@ def measure_rpc_latency(logger, address: str) -> dict:
         return {"error": str(e)}
 
 
+def _get_docker_client():
+    """Create a Docker client connected via the mounted socket."""
+    import docker
+    return docker.from_env()
+
+
 def start_docker_node(logger, container_name: str) -> dict:
     """
     Start a Docker container running the Massa node.
@@ -174,27 +180,15 @@ def start_docker_node(logger, container_name: str) -> dict:
     :param container_name: Name of the Docker container (e.g., 'massa-node')
     :return: dict with status and message
     """
-    import subprocess
     if logger is None:
         logger = logging.getLogger()
     
     try:
-        result = subprocess.run(
-            ['docker', 'start', container_name],
-            capture_output=True,
-            text=True,
-            timeout=30
-        )
-        if result.returncode == 0:
-            logger.info(f"Docker container '{container_name}' started successfully.")
-            return {"status": "ok", "message": f"✅ Container '{container_name}' started."}
-        else:
-            error_msg = result.stderr or result.stdout
-            logger.error(f"Failed to start container: {error_msg}")
-            return {"status": "error", "message": f"❌ Failed to start: {error_msg}"}
-    except subprocess.TimeoutExpired:
-        logger.error("Docker start command timed out.")
-        return {"status": "error", "message": "❌ Command timed out."}
+        client = _get_docker_client()
+        container = client.containers.get(container_name)
+        container.start()
+        logger.info(f"Docker container '{container_name}' started successfully.")
+        return {"status": "ok", "message": f"✅ Container '{container_name}' started."}
     except Exception as e:
         logger.error(f"Error starting Docker container: {e}")
         return {"status": "error", "message": f"❌ Error: {str(e)}"}
@@ -208,27 +202,15 @@ def stop_docker_node(logger, container_name: str) -> dict:
     :param container_name: Name of the Docker container (e.g., 'massa-node')
     :return: dict with status and message
     """
-    import subprocess
     if logger is None:
         logger = logging.getLogger()
     
     try:
-        result = subprocess.run(
-            ['docker', 'stop', container_name],
-            capture_output=True,
-            text=True,
-            timeout=30
-        )
-        if result.returncode == 0:
-            logger.info(f"Docker container '{container_name}' stopped successfully.")
-            return {"status": "ok", "message": f"✅ Container '{container_name}' stopped."}
-        else:
-            error_msg = result.stderr or result.stdout
-            logger.error(f"Failed to stop container: {error_msg}")
-            return {"status": "error", "message": f"❌ Failed to stop: {error_msg}"}
-    except subprocess.TimeoutExpired:
-        logger.error("Docker stop command timed out.")
-        return {"status": "error", "message": "❌ Command timed out."}
+        client = _get_docker_client()
+        container = client.containers.get(container_name)
+        container.stop(timeout=30)
+        logger.info(f"Docker container '{container_name}' stopped successfully.")
+        return {"status": "ok", "message": f"✅ Container '{container_name}' stopped."}
     except Exception as e:
         logger.error(f"Error stopping Docker container: {e}")
         return {"status": "error", "message": f"❌ Error: {str(e)}"}
@@ -244,28 +226,21 @@ def exec_massa_client(logger, container_name: str, password: str, command: str) 
     :param command: The massa-client command to execute (e.g. 'wallet_info')
     :return: dict with status, message/output
     """
-    import subprocess
     if logger is None:
         logger = logging.getLogger()
     
     try:
-        result = subprocess.run(
-            ['docker', 'exec', container_name, './massa-client', '-p', password, '-a', command],
-            capture_output=True,
-            text=True,
-            timeout=30
-        )
-        if result.returncode == 0:
-            output = result.stdout.strip()
+        client = _get_docker_client()
+        container = client.containers.get(container_name)
+        cmd = ['./massa-client', '-p', password, '-a', command]
+        exit_code, output = container.exec_run(cmd)
+        decoded = output.decode('utf-8', errors='replace').strip()
+        if exit_code == 0:
             logger.info(f"massa-client command '{command}' executed successfully.")
-            return {"status": "ok", "output": output}
+            return {"status": "ok", "output": decoded}
         else:
-            error_msg = result.stderr.strip() or result.stdout.strip()
-            logger.error(f"massa-client command failed: {error_msg}")
-            return {"status": "error", "message": f"❌ Command failed:\n{error_msg}"}
-    except subprocess.TimeoutExpired:
-        logger.error("massa-client command timed out.")
-        return {"status": "error", "message": "❌ Command timed out."}
+            logger.error(f"massa-client command failed: {decoded}")
+            return {"status": "error", "message": f"❌ Command failed:\n{decoded}"}
     except Exception as e:
         logger.error(f"Error executing massa-client: {e}")
         return {"status": "error", "message": f"❌ Error: {str(e)}"}
