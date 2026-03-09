@@ -4,5 +4,6 @@
         "admin" : "YOUR USER ID HERE"
     },
     "massa_node_address" : "YOUR MASSA ADDRESS",
-    "ninja_api_key" : "YOUR NINJA KEY HERE"
+    "ninja_api_key" : "YOUR NINJA KEY HERE",
+    "docker_container_name": "CONTAINER NAME HERE"
 }

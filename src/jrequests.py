@@ -139,3 +139,96 @@ def get_system_stats(logger) -> dict:
     except Exception as e:
         logger.error(f"An unexpected error occurred: {e}")
         return {"error": f"Unexpected error: {str(e)}"}
+
+
+def measure_rpc_latency(logger, address: str) -> dict:
+    """
+    Measure RPC latency and check node connectivity.
+    
+    :param logger: The logger instance
+    :param address: The Massa address to query
+    :return: dict with latency_ms and node status
+    """
+    import time
+    if logger is None:
+        logger = logging.getLogger()
+    
+    try:
+        start = time.time()
+        result = get_addresses(logger, address)
+        latency_ms = (time.time() - start) * 1000
+        
+        if "error" in result:
+            return {"error": result["error"], "latency_ms": round(latency_ms, 2)}
+        return {"latency_ms": round(latency_ms, 2), "status": "ok"}
+    except Exception as e:
+        logger.error(f"Error measuring RPC latency: {e}")
+        return {"error": str(e)}
+
+
+def start_docker_node(logger, container_name: str) -> dict:
+    """
+    Start a Docker container running the Massa node.
+    
+    :param logger: The logger instance
+    :param container_name: Name of the Docker container (e.g., 'massa-node')
+    :return: dict with status and message
+    """
+    import subprocess
+    if logger is None:
+        logger = logging.getLogger()
+    
+    try:
+        result = subprocess.run(
+            ['docker', 'start', container_name],
+            capture_output=True,
+            text=True,
+            timeout=30
+        )
+        if result.returncode == 0:
+            logger.info(f"Docker container '{container_name}' started successfully.")
+            return {"status": "ok", "message": f"✅ Container '{container_name}' started."}
+        else:
+            error_msg = result.stderr or result.stdout
+            logger.error(f"Failed to start container: {error_msg}")
+            return {"status": "error", "message": f"❌ Failed to start: {error_msg}"}
+    except subprocess.TimeoutExpired:
+        logger.error("Docker start command timed out.")
+        return {"status": "error", "message": "❌ Command timed out."}
+    except Exception as e:
+        logger.error(f"Error starting Docker container: {e}")
+        return {"status": "error", "message": f"❌ Error: {str(e)}"}
+
+
+def stop_docker_node(logger, container_name: str) -> dict:
+    """
+    Stop a Docker container running the Massa node.
+    
+    :param logger: The logger instance
+    :param container_name: Name of the Docker container (e.g., 'massa-node')
+    :return: dict with status and message
+    """
+    import subprocess
+    if logger is None:
+        logger = logging.getLogger()
+    
+    try:
+        result = subprocess.run(
+            ['docker', 'stop', container_name],
+            capture_output=True,
+            text=True,
+            timeout=30
+        )
+        if result.returncode == 0:
+            logger.info(f"Docker container '{container_name}' stopped successfully.")
+            return {"status": "ok", "message": f"✅ Container '{container_name}' stopped."}
+        else:
+            error_msg = result.stderr or result.stdout
+            logger.error(f"Failed to stop container: {error_msg}")
+            return {"status": "error", "message": f"❌ Failed to stop: {error_msg}"}
+    except subprocess.TimeoutExpired:
+        logger.error("Docker stop command timed out.")
+        return {"status": "error", "message": "❌ Command timed out."}
+    except Exception as e:
+        logger.error(f"Error stopping Docker container: {e}")
+        return {"status": "error", "message": f"❌ Error: {str(e)}"}

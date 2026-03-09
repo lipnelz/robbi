@@ -10,6 +10,9 @@ LOG_FILE_NAME = 'bot_activity.log'
 # Conversation states
 FLUSH_CONFIRM_STATE = 1
 HIST_CONFIRM_STATE = 2
+DOCKER_MENU_STATE = 3
+DOCKER_START_CONFIRM_STATE = 4
+DOCKER_STOP_CONFIRM_STATE = 5
 
 # Media files
 BUDDY_FILE_NAME = 'Buddy_christ.jpg'
@@ -32,6 +35,8 @@ COMMANDS_LIST = [
     {'id': 4, 'cmd_txt': 'hist', 'cmd_desc': 'Get node balance history'},
     {'id': 5, 'cmd_txt': 'flush', 'cmd_desc': 'Flush local logs'},
     {'id': 6, 'cmd_txt': 'temperature', 'cmd_desc': 'Get system temperature, CPU and RAM'},
+    {'id': 7, 'cmd_txt': 'perf', 'cmd_desc': 'Get node performance stats (RPC latency, uptime)'},
+    {'id': 8, 'cmd_txt': 'docker', 'cmd_desc': 'Manage Docker node container (start/stop)'},
 ]
 
 # Configure logging module
