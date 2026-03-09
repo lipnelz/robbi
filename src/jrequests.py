@@ -232,7 +232,7 @@ def exec_massa_client(logger, container_name: str, password: str, command: str) 
     try:
         client = _get_docker_client()
         container = client.containers.get(container_name)
-        cmd = ['./massa-client', '-p', password, '-a', command]
+        cmd = ['./massa-client', '-p', password, '-a', f'{command}\nexit']
         exit_code, output = container.exec_run(cmd, workdir='/massa/massa-client')
         decoded = output.decode('utf-8', errors='replace').strip()
         if exit_code == 0:
