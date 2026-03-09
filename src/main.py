@@ -10,10 +10,11 @@ from jrequests import get_addresses
 from services.history import load_balance_history
 from config import (
     FLUSH_CONFIRM_STATE, HIST_CONFIRM_STATE, COMMANDS_LIST,
+    DOCKER_MENU_STATE, DOCKER_START_CONFIRM_STATE, DOCKER_STOP_CONFIRM_STATE,
 )
-from handlers.node import node, flush, flush_confirm_yes, flush_confirm_no, hist, hist_confirm_yes, hist_confirm_no
+from handlers.node import node, flush, flush_confirm_yes, flush_confirm_no, hist, hist_confirm_yes, hist_confirm_no, docker, docker_start, docker_stop, docker_start_confirm, docker_stop_confirm, docker_cancel
 from handlers.price import btc, mas
-from handlers.system import hi, temperature
+from handlers.system import hi, temperature, perf
 from handlers.scheduler import run_async_func
 
 
@@ -24,6 +25,7 @@ HANDLER_MAP = {
     'btc': btc,
     'mas': mas,
     'temperature': temperature,
+    'perf': perf,
 }
 
 
@@ -61,6 +63,7 @@ def main():
     allowed_user_ids = {str(admin_id)}
     massa_node_address = config.get('massa_node_address')
     ninja_key = config.get('ninja_api_key')
+    docker_container_name = config.get('docker_container_name', 'massa-node')
 
     # Load persisted balance history from JSON file on disk
     balance_history = load_balance_history()
@@ -92,6 +95,7 @@ def main():
     application.bot_data['ninja_key'] = ninja_key
     application.bot_data['balance_history'] = balance_history
     application.bot_data['balance_lock'] = threading.Lock()
+    application.bot_data['docker_container_name'] = docker_container_name
 
     # Register simple command handlers (one function per command)
     for cmd in COMMANDS_LIST:
@@ -124,6 +128,27 @@ def main():
         fallbacks=[CommandHandler('hist', hist)]
     )
     application.add_handler(hist_handler)
+
+    # Register /docker as a ConversationHandler with menu and inline keyboard confirmation
+    docker_handler = ConversationHandler(
+        entry_points=[CommandHandler('docker', docker)],
+        states={
+            DOCKER_MENU_STATE: [
+                CallbackQueryHandler(docker_start, pattern='^docker_start$'),
+                CallbackQueryHandler(docker_stop, pattern='^docker_stop$')
+            ],
+            DOCKER_START_CONFIRM_STATE: [
+                CallbackQueryHandler(docker_start_confirm, pattern='^docker_start_confirm$'),
+                CallbackQueryHandler(docker_cancel, pattern='^docker_cancel$')
+            ],
+            DOCKER_STOP_CONFIRM_STATE: [
+                CallbackQueryHandler(docker_stop_confirm, pattern='^docker_stop_confirm$'),
+                CallbackQueryHandler(docker_cancel, pattern='^docker_cancel$')
+            ]
+        },
+        fallbacks=[CommandHandler('docker', docker)]
+    )
+    application.add_handler(docker_handler)
 
     application.add_error_handler(error_handler)
 

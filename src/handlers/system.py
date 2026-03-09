@@ -1,8 +1,9 @@
 import logging
 import subprocess
+from datetime import datetime, timedelta
 from telegram import Update
 from telegram.ext import CallbackContext
-from jrequests import get_system_stats
+from jrequests import get_system_stats, measure_rpc_latency
 from handlers.common import auth_required
 from config import BUDDY_FILE_NAME
 
@@ -76,3 +77,72 @@ async def temperature(update: Update, context: CallbackContext) -> None:
     except Exception as e:
         logging.error(f"Error when /temperature : {e}")
         await update.message.reply_text("Error retrieving system stats")
+
+
+def _calculate_uptime(balance_history: dict) -> float:
+    """
+    Calculate node uptime percentage based on balance history entries.
+    Assumes one entry per hour = 24 entries in 24h = 100% uptime.
+    """
+    if not balance_history:
+        return 0.0
+    
+    now = datetime.now()
+    cutoff = now - timedelta(hours=24)
+    
+    entries_in_24h = sum(
+        1 for key in balance_history.keys()
+        if _is_recent(key, cutoff, now)
+    )
+    
+    # Max 24 entries in 24h = 100%
+    uptime = (entries_in_24h / 24) * 100
+    return round(min(uptime, 100.0), 1)
+
+
+def _is_recent(key: str, cutoff: datetime, now: datetime) -> bool:
+    """
+    Check if a history key is within the last 24 hours.
+    Supports both new (YYYY/MM/DD-HH:MM) and legacy (DD/MM-HH:MM) formats.
+    """
+    try:
+        dt = datetime.strptime(key, "%Y/%m/%d-%H:%M")
+    except ValueError:
+        try:
+            dt = datetime.strptime(key, "%d/%m-%H:%M").replace(year=now.year)
+            if dt > now + timedelta(hours=1):
+                dt = dt.replace(year=now.year - 1)
+        except ValueError:
+            return False
+    return dt >= cutoff
+
+
+@auth_required
+async def perf(update: Update, context: CallbackContext) -> None:
+    """Handle /perf command: display node performance stats (RPC latency, uptime %)."""
+    logging.info(f'User {update.effective_user.id} used the /perf command.')
+    massa_node_address = context.bot_data['massa_node_address']
+    
+    try:
+        # Measure RPC latency
+        perf_data = measure_rpc_latency(logging, massa_node_address)
+        
+        if "error" in perf_data:
+            await update.message.reply_text(f"Error: {perf_data['error']}")
+            return
+        
+        # Calculate uptime from balance history
+        balance_history = context.bot_data.get('balance_history', {})
+        uptime_percent = _calculate_uptime(balance_history)
+        
+        formatted_string = (
+            f"⚡ Node Performance\n"
+            f"-----------\n"
+            f"RPC Latency: {perf_data['latency_ms']} ms\n"
+            f"Uptime (24h): {uptime_percent}%"
+        )
+        
+        await update.message.reply_text(formatted_string)
+    except Exception as e:
+        logging.error(f"Error when /perf : {e}")
+        await update.message.reply_text("Error retrieving performance stats")

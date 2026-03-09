@@ -3,12 +3,13 @@ import logging
 from datetime import datetime
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import CallbackContext, ConversationHandler
-from jrequests import get_addresses
+from jrequests import get_addresses, start_docker_node, stop_docker_node
 from handlers.common import auth_required, handle_api_error
 from services.history import save_balance_history
 from services.plotting import create_png_plot, create_balance_history_plot
 from config import (
     LOG_FILE_NAME, FLUSH_CONFIRM_STATE, HIST_CONFIRM_STATE,
+    DOCKER_MENU_STATE, DOCKER_START_CONFIRM_STATE, DOCKER_STOP_CONFIRM_STATE,
     PAT_FILE_NAME,
 )
 
@@ -322,6 +323,188 @@ async def hist_confirm_no(update: Update, context: CallbackContext) -> int:
         await query.answer()
     except Exception as e:
         logging.error(f"Error in hist_confirm_no: {e}")
+        await query.answer()
+
+    return ConversationHandler.END
+
+
+async def docker(update: Update, context: CallbackContext) -> int:
+    """Handle /docker command: show menu with Start/Stop options.
+    This is a ConversationHandler entry point (cannot use @auth_required).
+    """
+    user_id = str(update.effective_user.id)
+    logging.info(f'User {user_id} used the /docker command.')
+    allowed_user_ids = context.bot_data.get('allowed_user_ids', set())
+
+    # Manual auth check (ConversationHandler requires returning a state)
+    if user_id not in allowed_user_ids:
+        await update.message.reply_text("Access denied. You are not authorized.")
+        return ConversationHandler.END
+
+    # Present inline keyboard: Start or Stop
+    keyboard = [
+        [
+            InlineKeyboardButton("▶️ Start", callback_data='docker_start'),
+            InlineKeyboardButton("⏹️ Stop", callback_data='docker_stop')
+        ]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+
+    await update.message.reply_text(
+        "🐳 Docker Node Management\n"
+        "What do you want to do?",
+        reply_markup=reply_markup
+    )
+
+    return DOCKER_MENU_STATE
+
+
+async def docker_start(update: Update, context: CallbackContext) -> int:
+    """Callback for docker 'Start': ask for confirmation."""
+    query = update.callback_query
+    user_id = str(query.from_user.id)
+    logging.info(f'User {user_id} selected Start in docker menu.')
+    allowed_user_ids = context.bot_data.get('allowed_user_ids', set())
+
+    if user_id not in allowed_user_ids:
+        await query.answer("Access denied.", show_alert=True)
+        return ConversationHandler.END
+
+    keyboard = [
+        [
+            InlineKeyboardButton("Yes", callback_data='docker_start_confirm'),
+            InlineKeyboardButton("No", callback_data='docker_cancel')
+        ]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+
+    await query.edit_message_text(
+        text="⚠️  Are you sure you want to start the node container?",
+        reply_markup=reply_markup
+    )
+    await query.answer()
+
+    return DOCKER_START_CONFIRM_STATE
+
+
+async def docker_stop(update: Update, context: CallbackContext) -> int:
+    """Callback for docker 'Stop': ask for confirmation."""
+    query = update.callback_query
+    user_id = str(query.from_user.id)
+    logging.info(f'User {user_id} selected Stop in docker menu.')
+    allowed_user_ids = context.bot_data.get('allowed_user_ids', set())
+
+    if user_id not in allowed_user_ids:
+        await query.answer("Access denied.", show_alert=True)
+        return ConversationHandler.END
+
+    keyboard = [
+        [
+            InlineKeyboardButton("Yes", callback_data='docker_stop_confirm'),
+            InlineKeyboardButton("No", callback_data='docker_cancel')
+        ]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+
+    await query.edit_message_text(
+        text="⚠️  Are you sure you want to stop the node container?",
+        reply_markup=reply_markup
+    )
+    await query.answer()
+
+    return DOCKER_STOP_CONFIRM_STATE
+
+
+async def docker_start_confirm(update: Update, context: CallbackContext) -> int:
+    """Callback for docker start confirmation: execute docker start command."""
+    query = update.callback_query
+    user_id = str(query.from_user.id)
+    logging.info(f'User {user_id} confirmed docker start.')
+    allowed_user_ids = context.bot_data.get('allowed_user_ids', set())
+
+    if user_id not in allowed_user_ids:
+        await query.answer("Access denied.", show_alert=True)
+        return ConversationHandler.END
+
+    try:
+        # Get container name from bot_data (must be set in main.py from topology.json)
+        container_name = context.bot_data.get('docker_container_name')
+        if not container_name:
+            await query.edit_message_text(text="❌ Error: Docker container name not configured.")
+            await query.answer()
+            return ConversationHandler.END
+
+        # Execute the docker start command
+        result = start_docker_node(logging, container_name)
+
+        if result['status'] == 'ok':
+            await query.edit_message_text(text=result['message'])
+            logging.info(f"User {user_id} successfully started the docker container.")
+        else:
+            await query.edit_message_text(text=result['message'])
+
+        await query.answer()
+    except Exception as e:
+        logging.error(f"Error executing docker start: {e}")
+        await query.edit_message_text(text="❌ Error executing docker start command.")
+        await query.answer()
+
+    return ConversationHandler.END
+
+
+async def docker_stop_confirm(update: Update, context: CallbackContext) -> int:
+    """Callback for docker stop confirmation: execute docker stop command."""
+    query = update.callback_query
+    user_id = str(query.from_user.id)
+    logging.info(f'User {user_id} confirmed docker stop.')
+    allowed_user_ids = context.bot_data.get('allowed_user_ids', set())
+
+    if user_id not in allowed_user_ids:
+        await query.answer("Access denied.", show_alert=True)
+        return ConversationHandler.END
+
+    try:
+        # Get container name from bot_data (must be set in main.py from topology.json)
+        container_name = context.bot_data.get('docker_container_name')
+        if not container_name:
+            await query.edit_message_text(text="❌ Error: Docker container name not configured.")
+            await query.answer()
+            return ConversationHandler.END
+
+        # Execute the docker stop command
+        result = stop_docker_node(logging, container_name)
+
+        if result['status'] == 'ok':
+            await query.edit_message_text(text=result['message'])
+            logging.info(f"User {user_id} successfully stopped the docker container.")
+        else:
+            await query.edit_message_text(text=result['message'])
+
+        await query.answer()
+    except Exception as e:
+        logging.error(f"Error executing docker stop: {e}")
+        await query.edit_message_text(text="❌ Error executing docker stop command.")
+        await query.answer()
+
+    return ConversationHandler.END
+
+
+async def docker_cancel(update: Update, context: CallbackContext) -> int:
+    """Callback for docker cancel: dismiss the action."""
+    query = update.callback_query
+    user_id = str(query.from_user.id)
+    logging.info(f'User {user_id} cancelled docker action.')
+    allowed_user_ids = context.bot_data.get('allowed_user_ids', set())
+
+    if user_id not in allowed_user_ids:
+        await query.answer("Access denied.", show_alert=True)
+        return ConversationHandler.END
+
+    try:
+        await query.edit_message_text(text="❌ Action cancelled.")
+        await query.answer()
+    except Exception as e:
+        logging.error(f"Error in docker_cancel: {e}")
         await query.answer()
 
     return ConversationHandler.END
