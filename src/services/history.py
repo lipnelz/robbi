@@ -34,14 +34,18 @@ def save_balance_history(balance_history: dict) -> None:
 
 
 def filter_last_24h(history: dict) -> dict:
-    """Filter balance history to only keep entries from the last 24 hours.
+    """Filter balance history to keep only one entry per hour from the last 24 hours.
+    For each hour, the latest recorded entry is kept.
+    Returns at most 24 entries in chronological order.
     Keys are in "YYYY/MM/DD-HH:MM" format (with year).
     Legacy keys in "DD/MM-HH:MM" format are also supported.
     """
     now = datetime.now()
     cutoff = now - timedelta(hours=24)
     current_year = now.year
-    filtered = {}
+
+    # Collect all entries within the last 24 hours with their parsed datetime
+    entries = []
     for key, value in history.items():
         try:
             # Try new format first: YYYY/MM/DD-HH:MM
@@ -55,5 +59,20 @@ def filter_last_24h(history: dict) -> dict:
             except ValueError:
                 continue
         if dt >= cutoff:
-            filtered[key] = value
+            entries.append((dt, key, value))
+
+    # Sort chronologically
+    entries.sort(key=lambda x: x[0])
+
+    # Keep only the latest entry for each hour
+    hourly = {}
+    for dt, key, value in entries:
+        hour_key = (dt.year, dt.month, dt.day, dt.hour)
+        hourly[hour_key] = (dt, key, value)
+
+    # Build result dict in chronological order, keeping only the last 24 entries
+    sorted_entries = sorted(hourly.values(), key=lambda x: x[0])[-24:]
+    filtered = {}
+    for _, key, value in sorted_entries:
+        filtered[key] = value
     return filtered
