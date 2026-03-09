@@ -9,7 +9,7 @@ Robbi is a Telegram bot that monitors a [Massa](https://massa.net/) blockchain n
 - **Crypto price tracking** — Real-time Bitcoin (API-Ninjas) and Massa/USDT (MEXC) prices
 - **System monitoring** — Per-core CPU usage, RAM, and per-sensor temperature details
 - **Node performance** — RPC latency measurement and uptime percentage (last 24h)
-- **Docker management** — Start/stop the Massa node container and execute Massa client commands (wallet_info, buy_rolls, sell_rolls) via interactive menus
+- **Docker management** — Start/stop the Massa node container and execute Massa client commands (wallet_info, buy_rolls, sell_rolls) via interactive menus, using the Docker SDK (socket-based, no CLI needed)
 - **User authentication** — All commands restricted to whitelisted user via `auth_required` decorator
 - **Interactive confirmations** — Inline keyboard buttons for operations (`/flush`, `/hist`, `/docker`)
 
@@ -19,7 +19,7 @@ Robbi is a Telegram bot that monitors a [Massa](https://massa.net/) blockchain n
 src/
 ├── main.py                  # Entry point: config, bot_data setup, handler registration
 ├── config.py                # Constants, logging config, command list
-├── jrequests.py             # External API calls (Massa JSON-RPC, API-Ninjas, MEXC, Docker)
+├── jrequests.py             # External API calls (Massa JSON-RPC, API-Ninjas, MEXC, Docker SDK)
 ├── Dockerfile
 ├── entrypoint.sh
 ├── handlers/
@@ -97,8 +97,8 @@ The `/docker` command opens a multi-level interactive menu:
         └── ⬅️ Back          → Return to main menu
 ```
 
-> **Note:** For Docker commands to work, the bot container needs access to the Docker daemon.
-> Mount the Docker socket in your `docker-compose.yml`:
+> **Note:** Docker commands use the Python Docker SDK which communicates directly via the Docker socket.
+> The bot container does **not** need the `docker` CLI installed — only the socket mount:
 > ```yaml
 > volumes:
 >   - /var/run/docker.sock:/var/run/docker.sock
@@ -119,7 +119,7 @@ The `/docker` command opens a multi-level interactive menu:
 pip install -r requirements.txt
 ```
 
-Key packages: `python-telegram-bot`, `requests`, `matplotlib`, `apscheduler`, `psutil`
+Key packages: `python-telegram-bot`, `requests`, `matplotlib`, `apscheduler`, `psutil`, `docker`
 
 ## How to Run
 
@@ -173,6 +173,7 @@ Activity is logged to `bot_activity.log`.
 | No node data | Check Massa node is running and JSON-RPC endpoint is reachable |
 | Missing temperature data | Sensor may not be available on your system (non-critical) |
 | Graph generation fails | `pip install --upgrade matplotlib` |
+| Docker commands fail with "No such file or directory" | Ensure `docker` Python package is installed (not the CLI) and the socket is mounted |
 
 ## External Links
 
