@@ -4,15 +4,17 @@ import json
 import logging
 import threading
 from telegram import BotCommand
-from telegram.ext import Application, CommandHandler, ContextTypes, ConversationHandler, CallbackQueryHandler
+from telegram.ext import Application, CommandHandler, ContextTypes, ConversationHandler, CallbackQueryHandler, MessageHandler, filters
 from telegram.request import HTTPXRequest
 from jrequests import get_addresses
 from services.history import load_balance_history
 from config import (
     FLUSH_CONFIRM_STATE, HIST_CONFIRM_STATE, COMMANDS_LIST,
     DOCKER_MENU_STATE, DOCKER_START_CONFIRM_STATE, DOCKER_STOP_CONFIRM_STATE,
+    DOCKER_MASSA_MENU_STATE, DOCKER_BUYROLLS_INPUT_STATE, DOCKER_BUYROLLS_CONFIRM_STATE,
+    DOCKER_SELLROLLS_INPUT_STATE, DOCKER_SELLROLLS_CONFIRM_STATE,
 )
-from handlers.node import node, flush, flush_confirm_yes, flush_confirm_no, hist, hist_confirm_yes, hist_confirm_no, docker, docker_start, docker_stop, docker_start_confirm, docker_stop_confirm, docker_cancel
+from handlers.node import node, flush, flush_confirm_yes, flush_confirm_no, hist, hist_confirm_yes, hist_confirm_no, docker, docker_start, docker_stop, docker_start_confirm, docker_stop_confirm, docker_cancel, docker_massa, massa_wallet_info, massa_buy_rolls_ask, massa_buy_rolls_input, massa_buy_rolls_confirm, massa_sell_rolls_ask, massa_sell_rolls_input, massa_sell_rolls_confirm, massa_back
 from handlers.price import btc, mas
 from handlers.system import hi, temperature, perf
 from handlers.scheduler import run_async_func
@@ -64,6 +66,9 @@ def main():
     massa_node_address = config.get('massa_node_address')
     ninja_key = config.get('ninja_api_key')
     docker_container_name = config.get('docker_container_name', 'massa-node')
+    massa_client_password = config.get('massa_client_password', '')
+    massa_wallet_address = config.get('massa_wallet_address', '')
+    massa_buy_rolls_fee = config.get('massa_buy_rolls_fee', 0.01)
 
     # Load persisted balance history from JSON file on disk
     balance_history = load_balance_history()
@@ -96,6 +101,9 @@ def main():
     application.bot_data['balance_history'] = balance_history
     application.bot_data['balance_lock'] = threading.Lock()
     application.bot_data['docker_container_name'] = docker_container_name
+    application.bot_data['massa_client_password'] = massa_client_password
+    application.bot_data['massa_wallet_address'] = massa_wallet_address
+    application.bot_data['massa_buy_rolls_fee'] = massa_buy_rolls_fee
 
     # Register simple command handlers (one function per command)
     for cmd in COMMANDS_LIST:
@@ -135,7 +143,8 @@ def main():
         states={
             DOCKER_MENU_STATE: [
                 CallbackQueryHandler(docker_start, pattern='^docker_start$'),
-                CallbackQueryHandler(docker_stop, pattern='^docker_stop$')
+                CallbackQueryHandler(docker_stop, pattern='^docker_stop$'),
+                CallbackQueryHandler(docker_massa, pattern='^docker_massa$')
             ],
             DOCKER_START_CONFIRM_STATE: [
                 CallbackQueryHandler(docker_start_confirm, pattern='^docker_start_confirm$'),
@@ -143,6 +152,26 @@ def main():
             ],
             DOCKER_STOP_CONFIRM_STATE: [
                 CallbackQueryHandler(docker_stop_confirm, pattern='^docker_stop_confirm$'),
+                CallbackQueryHandler(docker_cancel, pattern='^docker_cancel$')
+            ],
+            DOCKER_MASSA_MENU_STATE: [
+                CallbackQueryHandler(massa_wallet_info, pattern='^massa_wallet_info$'),
+                CallbackQueryHandler(massa_buy_rolls_ask, pattern='^massa_buy_rolls$'),
+                CallbackQueryHandler(massa_sell_rolls_ask, pattern='^massa_sell_rolls$'),
+                CallbackQueryHandler(massa_back, pattern='^massa_back$')
+            ],
+            DOCKER_BUYROLLS_INPUT_STATE: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, massa_buy_rolls_input)
+            ],
+            DOCKER_BUYROLLS_CONFIRM_STATE: [
+                CallbackQueryHandler(massa_buy_rolls_confirm, pattern='^buyrolls_confirm$'),
+                CallbackQueryHandler(docker_cancel, pattern='^docker_cancel$')
+            ],
+            DOCKER_SELLROLLS_INPUT_STATE: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, massa_sell_rolls_input)
+            ],
+            DOCKER_SELLROLLS_CONFIRM_STATE: [
+                CallbackQueryHandler(massa_sell_rolls_confirm, pattern='^sellrolls_confirm$'),
                 CallbackQueryHandler(docker_cancel, pattern='^docker_cancel$')
             ]
         },
