@@ -1,2 +1,0 @@
-2026-03-10 13:16:37,428 - matplotlib.font_manager - INFO - Failed to extract font properties from /usr/share/fonts/truetype/noto/NotoColorEmoji.ttf: Can not load face (unknown file format; error code 0x2)
-2026-03-10 13:16:37,440 - matplotlib.font_manager - INFO - generated new fontManager
