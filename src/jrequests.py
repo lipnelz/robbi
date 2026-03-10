@@ -219,7 +219,10 @@ def stop_docker_node(logger, container_name: str) -> dict:
 def exec_massa_client(logger, container_name: str, password: str, command: str) -> dict:
     """
     Execute a command via massa-client inside a Docker container.
-    
+
+    The command is piped to the client's stdin followed by 'exit' to guarantee
+    that the massa-client process terminates after execution.
+
     :param logger: The logger instance
     :param container_name: Name of the Docker container
     :param password: Massa client password
@@ -228,12 +231,16 @@ def exec_massa_client(logger, container_name: str, password: str, command: str) 
     """
     if logger is None:
         logger = logging.getLogger()
-    
+
     try:
         client = _get_docker_client()
         container = client.containers.get(container_name)
-        cmd = ['./massa-client', '-p', password, '-a'] + command.split()
-        exit_code, output = container.exec_run(cmd, workdir='/massa/massa-client')
+        # Pipe the command followed by 'exit' via stdin so the client always
+        # terminates cleanly after executing the requested command.
+        # Environment variables are used to avoid shell injection.
+        cmd = ['bash', '-c', "printf '%s\\nexit\\n' \"$MC_CMD\" | ./massa-client -p \"$MC_PWD\""]
+        env = {'MC_CMD': command, 'MC_PWD': password}
+        exit_code, output = container.exec_run(cmd, workdir='/massa/massa-client', environment=env)
         decoded = output.decode('utf-8', errors='replace').strip()
         if exit_code == 0:
             logger.info(f"massa-client command '{command}' executed successfully.")
