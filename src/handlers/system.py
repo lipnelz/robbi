@@ -1,8 +1,9 @@
 import logging
+import asyncio
 import subprocess
 from datetime import datetime, timedelta
-from telegram import Update
-from telegram.ext import CallbackContext
+import discord
+from discord.ext import commands
 from jrequests import get_system_stats, measure_rpc_latency
 from handlers.common import auth_required
 from config import BUDDY_FILE_NAME
@@ -20,65 +21,6 @@ def _get_git_commit_hash() -> str:
         return 'unknown'
 
 
-@auth_required
-async def hi(update: Update, context: CallbackContext) -> None:
-    """Handle /hi command: send a greeting message with a fun image."""
-    logging.info(f'User {update.effective_user.id} used the /hi command.')
-    commit_hash = _get_git_commit_hash()
-    await update.message.reply_text(f'Hey dude! (version: {commit_hash})')
-    await update.message.reply_photo(photo=f'media/{BUDDY_FILE_NAME}')
-
-
-@auth_required
-async def temperature(update: Update, context: CallbackContext) -> None:
-    """Handle /temperature command: display per-sensor temps, per-core CPU and RAM usage."""
-    logging.info(f'User {update.effective_user.id} used the /temperature command.')
-
-    try:
-        stats = get_system_stats(logging)
-        if "error" in stats:
-            error_message = stats["error"]
-            logging.error(f"Error while getting system stats: {error_message}")
-            await update.message.reply_text(f"Error: {error_message}")
-            return
-
-        formatted_string = (
-            f"🌡️ System Status\n"
-            f"-----------\n"
-        )
-
-        # Per-sensor temperature details (Linux only, via psutil)
-        if "temperature_details" in stats:
-            formatted_string += "🌡️ Temperatures:\n"
-            for temp_info in stats['temperature_details']:
-                formatted_string += f"  {temp_info['sensor']} {temp_info['label']}: {temp_info['current']}°C\n"
-            if "temperature_avg" in stats:
-                formatted_string += f"  Average: {stats['temperature_avg']}°C\n"
-
-        formatted_string += (
-            f"-----------\n"
-            f"CPU Usage Global: {stats['cpu_percent']}%\n"
-            f"-----------\n"
-        )
-
-        # Per-core CPU usage breakdown
-        if "cpu_cores" in stats:
-            formatted_string += "CPU Cores:\n"
-            for core_info in stats['cpu_cores']:
-                formatted_string += f"  Core {core_info['core']}: {core_info['percent']}%\n"
-
-        formatted_string += (
-            f"-----------\n"
-            f"RAM Usage: {stats['ram_percent']}%\n"
-            f"RAM Available: {stats['ram_available_gb']} GB / {stats['ram_total_gb']} GB"
-        )
-
-        await update.message.reply_text(formatted_string)
-    except Exception as e:
-        logging.error(f"Error when /temperature : {e}")
-        await update.message.reply_text("Error retrieving system stats")
-
-
 def _calculate_uptime(balance_history: dict) -> float:
     """
     Calculate node uptime percentage based on balance history entries.
@@ -86,16 +28,15 @@ def _calculate_uptime(balance_history: dict) -> float:
     """
     if not balance_history:
         return 0.0
-    
+
     now = datetime.now()
     cutoff = now - timedelta(hours=24)
-    
+
     entries_in_24h = sum(
         1 for key in balance_history.keys()
         if _is_recent(key, cutoff, now)
     )
-    
-    # Max 24 entries in 24h = 100%
+
     uptime = (entries_in_24h / 24) * 100
     return round(min(uptime, 100.0), 1)
 
@@ -117,32 +58,97 @@ def _is_recent(key: str, cutoff: datetime, now: datetime) -> bool:
     return dt >= cutoff
 
 
-@auth_required
-async def perf(update: Update, context: CallbackContext) -> None:
-    """Handle /perf command: display node performance stats (RPC latency, uptime %)."""
-    logging.info(f'User {update.effective_user.id} used the /perf command.')
-    massa_node_address = context.bot_data['massa_node_address']
-    
-    try:
-        # Measure RPC latency
-        perf_data = measure_rpc_latency(logging, massa_node_address)
-        
-        if "error" in perf_data:
-            await update.message.reply_text(f"Error: {perf_data['error']}")
-            return
-        
-        # Calculate uptime from balance history
-        balance_history = context.bot_data.get('balance_history', {})
-        uptime_percent = _calculate_uptime(balance_history)
-        
-        formatted_string = (
-            f"⚡ Node Performance\n"
-            f"-----------\n"
-            f"RPC Latency: {perf_data['latency_ms']} ms\n"
-            f"Uptime (24h): {uptime_percent}%"
-        )
-        
-        await update.message.reply_text(formatted_string)
-    except Exception as e:
-        logging.error(f"Error when /perf : {e}")
-        await update.message.reply_text("Error retrieving performance stats")
+def setup_system_commands(bot: commands.Bot) -> None:
+    """Register /hi, /temperature and /perf slash commands on the bot's application command tree."""
+
+    @bot.tree.command(name='hi', description='Say hi to Robbi')
+    @auth_required
+    async def hi(interaction: discord.Interaction) -> None:
+        """Handle /hi command: send a greeting message with a fun image."""
+        logging.info(f'User {interaction.user.id} used the /hi command.')
+        await interaction.response.defer()
+        commit_hash = _get_git_commit_hash()
+        await interaction.followup.send(f'Hey dude! (version: {commit_hash})')
+        await interaction.followup.send(file=discord.File(f'media/{BUDDY_FILE_NAME}'))
+
+    @bot.tree.command(name='temperature', description='Get system temperature, CPU and RAM')
+    @auth_required
+    async def temperature(interaction: discord.Interaction) -> None:
+        """Handle /temperature command: display per-sensor temps, per-core CPU and RAM usage."""
+        logging.info(f'User {interaction.user.id} used the /temperature command.')
+        await interaction.response.defer()
+
+        try:
+            stats = get_system_stats(logging)
+            if "error" in stats:
+                error_message = stats["error"]
+                logging.error(f"Error while getting system stats: {error_message}")
+                await interaction.followup.send(f"Error: {error_message}")
+                return
+
+            formatted_string = (
+                "🌡️ System Status\n"
+                "-----------\n"
+            )
+
+            if "temperature_details" in stats:
+                formatted_string += "🌡️ Temperatures:\n"
+                for temp_info in stats['temperature_details']:
+                    formatted_string += f"  {temp_info['sensor']} {temp_info['label']}: {temp_info['current']}°C\n"
+                if "temperature_avg" in stats:
+                    formatted_string += f"  Average: {stats['temperature_avg']}°C\n"
+
+            formatted_string += (
+                f"-----------\n"
+                f"CPU Usage Global: {stats['cpu_percent']}%\n"
+                f"-----------\n"
+            )
+
+            if "cpu_cores" in stats:
+                formatted_string += "CPU Cores:\n"
+                for core_info in stats['cpu_cores']:
+                    formatted_string += f"  Core {core_info['core']}: {core_info['percent']}%\n"
+
+            formatted_string += (
+                f"-----------\n"
+                f"RAM Usage: {stats['ram_percent']}%\n"
+                f"RAM Available: {stats['ram_available_gb']} GB / {stats['ram_total_gb']} GB"
+            )
+
+            await interaction.followup.send(formatted_string)
+        except Exception as e:
+            logging.error(f"Error when /temperature : {e}")
+            await interaction.followup.send("Error retrieving system stats")
+
+    @bot.tree.command(name='perf', description='Get node performance stats (RPC latency, uptime)')
+    @auth_required
+    async def perf(interaction: discord.Interaction) -> None:
+        """Handle /perf command: display node performance stats (RPC latency, uptime %)."""
+        logging.info(f'User {interaction.user.id} used the /perf command.')
+        await interaction.response.defer()
+        massa_node_address = interaction.client.massa_node_address
+
+        try:
+            loop = asyncio.get_running_loop()
+            perf_data = await loop.run_in_executor(
+                None, measure_rpc_latency, logging, massa_node_address
+            )
+
+            if "error" in perf_data:
+                await interaction.followup.send(f"Error: {perf_data['error']}")
+                return
+
+            balance_history = interaction.client.balance_history
+            uptime_percent = _calculate_uptime(balance_history)
+
+            formatted_string = (
+                f"⚡ Node Performance\n"
+                f"-----------\n"
+                f"RPC Latency: {perf_data['latency_ms']} ms\n"
+                f"Uptime (24h): {uptime_percent}%"
+            )
+
+            await interaction.followup.send(formatted_string)
+        except Exception as e:
+            logging.error(f"Error when /perf : {e}")
+            await interaction.followup.send("Error retrieving performance stats")

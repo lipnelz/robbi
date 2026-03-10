@@ -1,5 +1,5 @@
 {
-    "telegram_bot_token" : "YOUR API KEY HERE",
+    "discord_bot_token" : "YOUR API KEY HERE",
     "user_white_list": {
         "admin" : "YOUR USER ID HERE"
     },
