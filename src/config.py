@@ -7,18 +7,6 @@ JOB_SCHED_NAME = 'periodic_node_ping'
 # Logging
 LOG_FILE_NAME = 'bot_activity.log'
 
-# Conversation states
-FLUSH_CONFIRM_STATE = 1
-HIST_CONFIRM_STATE = 2
-DOCKER_MENU_STATE = 3
-DOCKER_START_CONFIRM_STATE = 4
-DOCKER_STOP_CONFIRM_STATE = 5
-DOCKER_MASSA_MENU_STATE = 6
-DOCKER_BUYROLLS_INPUT_STATE = 7
-DOCKER_BUYROLLS_CONFIRM_STATE = 8
-DOCKER_SELLROLLS_INPUT_STATE = 9
-DOCKER_SELLROLLS_CONFIRM_STATE = 10
-
 # Media files
 BUDDY_FILE_NAME = 'Buddy_christ.jpg'
 PAT_FILE_NAME = 'patrick.gif'
@@ -31,7 +19,7 @@ TIMEOUT_FIRE_NAME = "timeout_fire.png"
 NODE_IS_DOWN = 'Node is down'
 NODE_IS_UP = 'Node is up and running'
 
-# Bot commands
+# Bot commands (used for slash-command descriptions)
 COMMANDS_LIST = [
     {'id': 0, 'cmd_txt': 'hi', 'cmd_desc': 'Say hi to Robbi'},
     {'id': 1, 'cmd_txt': 'node', 'cmd_desc': 'Get node results'},

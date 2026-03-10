@@ -1,6 +1,6 @@
-# Robbi — Telegram bot for Massa node monitoring
+# Robbi — Discord bot for Massa node monitoring
 
-Robbi is a Telegram bot that monitors a [Massa](https://massa.net/) blockchain node, tracks balance history, and provides crypto price data and system stats.
+Robbi is a Discord bot that monitors a [Massa](https://massa.net/) blockchain node, tracks balance history, and provides crypto price data and system stats.
 
 ## Features
 
@@ -9,32 +9,32 @@ Robbi is a Telegram bot that monitors a [Massa](https://massa.net/) blockchain n
 - **Crypto price tracking** — Real-time Bitcoin (API-Ninjas) and Massa/USDT (MEXC) prices
 - **System monitoring** — Per-core CPU usage, RAM, and per-sensor temperature details
 - **Node performance** — RPC latency measurement and uptime percentage (last 24h)
-- **Docker management** — Start/stop the Massa node container and execute Massa client commands (wallet_info, buy_rolls, sell_rolls) via interactive menus, using the Docker SDK (socket-based, no CLI needed)
+- **Docker management** — Start/stop the Massa node container and execute Massa client commands (wallet_info, buy_rolls, sell_rolls) via interactive button menus, using the Docker SDK (socket-based, no CLI needed)
 - **User authentication** — All commands restricted to whitelisted user via `auth_required` decorator
-- **Interactive confirmations** — Inline keyboard buttons for operations (`/flush`, `/hist`, `/docker`)
+- **Interactive confirmations** — Discord UI buttons and modals for operations (`/flush`, `/hist`, `/docker`)
 
 ## Project Structure
 
 ```
 src/
-├── main.py                  # Entry point: config, bot_data setup, handler registration
+├── main.py                  # Entry point: config, RobbiBot setup, command registration
 ├── config.py                # Constants, logging config, command list
 ├── jrequests.py             # External API calls (Massa JSON-RPC, API-Ninjas, MEXC, Docker SDK)
 ├── Dockerfile
 ├── entrypoint.sh
 ├── handlers/
 │   ├── common.py            # auth_required decorator, handle_api_error helper
-│   ├── node.py              # /node, /flush, /hist, /docker commands
+│   ├── node.py              # /node, /flush, /hist, /docker commands + Discord Views/Modals
 │   ├── price.py             # /btc, /mas commands
 │   ├── system.py            # /hi, /temperature, /perf commands
-│   └── scheduler.py         # Periodic node ping (APScheduler)
+│   └── scheduler.py         # Periodic node ping (APScheduler), DM notifications
 ├── services/
 │   ├── history.py           # Balance history load/save/filter (JSON persistence)
 │   └── plotting.py          # Chart generation (matplotlib)
 └── media/                   # Images used in bot responses
 ```
 
-Shared state (`allowed_user_ids`, `massa_node_address`, `ninja_key`, `balance_history`, `docker_container_name`, etc.) is stored in `application.bot_data` and accessed via `context.bot_data` in handlers — no global variables.
+Shared state (`allowed_user_ids`, `massa_node_address`, `ninja_key`, `balance_history`, `docker_container_name`, etc.) is stored as attributes on the `RobbiBot` instance and accessed via `interaction.client` in all handlers — no global variables.
 
 ## Configuration
 
@@ -42,7 +42,7 @@ The `topology.json` file (placed at the repository root) provides all configurat
 
 ```json
 {
-    "telegram_bot_token": "YOUR_API_KEY",
+    "discord_bot_token": "YOUR_API_KEY",
     "user_white_list": {
         "admin": "YOUR_USER_ID"
     },
@@ -57,8 +57,8 @@ The `topology.json` file (placed at the repository root) provides all configurat
 
 | Key | Description |
 |-----|-------------|
-| `telegram_bot_token` | Telegram bot token from BotFather |
-| `user_white_list.admin` | Telegram user ID authorized to use the bot |
+| `discord_bot_token` | Discord bot token from the [Developer Portal](https://discord.com/developers/applications) |
+| `user_white_list.admin` | Discord user ID (snowflake) authorized to use the bot |
 | `massa_node_address` | Massa wallet address for node monitoring |
 | `ninja_api_key` | API-Ninjas key for Bitcoin price |
 | `docker_container_name` | Name of the Docker container running the Massa node (default: `massa-container`) |
@@ -68,7 +68,7 @@ The `topology.json` file (placed at the repository root) provides all configurat
 
 ## Commands
 
-All commands require authentication via `topology.json` whitelist.
+All commands are Discord slash commands and require authentication via `topology.json` whitelist.
 
 | Command | Description |
 |---------|-------------|
@@ -84,7 +84,7 @@ All commands require authentication via `topology.json` whitelist.
 
 ### `/docker` — Interactive Menu
 
-The `/docker` command opens a multi-level interactive menu:
+The `/docker` command opens a multi-level interactive button menu:
 
 ```
 🐳 Docker Node Management
@@ -92,8 +92,8 @@ The `/docker` command opens a multi-level interactive menu:
   ├── ⏹️ Stop        → Confirmation → Stop the node container
   └── 💻 Massa Client
         ├── 💰 Wallet Info   → Execute wallet_info
-        ├── 🎲 Buy Rolls     → Input roll count → Confirmation → Execute buy_rolls
-        ├── 💸 Sell Rolls     → Input roll count → Confirmation → Execute sell_rolls
+        ├── 🎲 Buy Rolls     → Modal (roll count input) → Confirmation → Execute buy_rolls
+        ├── 💸 Sell Rolls    → Modal (roll count input) → Confirmation → Execute sell_rolls
         └── ⬅️ Back          → Return to main menu
 ```
 
@@ -107,7 +107,8 @@ The `/docker` command opens a multi-level interactive menu:
 ## Requirements
 
 - Python 3.12+
-- A Telegram bot created via [BotFather](https://core.telegram.org/bots#botfather)
+- A Discord application/bot created via the [Discord Developer Portal](https://discord.com/developers/applications)
+  - Enable the **applications.commands** (slash commands) OAuth2 scope
 - A Massa node with accessible JSON-RPC API
 - API keys:
   - [API-Ninjas](https://www.api-ninjas.com/) — Bitcoin price
@@ -119,7 +120,7 @@ The `/docker` command opens a multi-level interactive menu:
 pip install -r requirements.txt
 ```
 
-Key packages: `python-telegram-bot`, `requests`, `matplotlib`, `apscheduler`, `psutil`, `docker`
+Key packages: `discord.py`, `requests`, `matplotlib`, `apscheduler`, `psutil`, `docker`
 
 ## How to Run
 
@@ -158,7 +159,7 @@ Activity is logged to `bot_activity.log`.
 ## Notes on Operation
 
 - **Periodic pings** — Every 60 minutes, the bot checks the Massa node and records the balance
-- **Scheduled reports** — At 7:00, 12:00, and 21:00 (if node is up), sends a detailed status report including:
+- **Scheduled reports** — At 7:00, 12:00, and 21:00 (if node is up), sends a detailed status DM including:
   - Balance comparison: first recorded vs current value
   - Change amount and percentage (📈/📉 indicators)
   - Last 24h balance history
@@ -169,7 +170,8 @@ Activity is logged to `bot_activity.log`.
 
 | Issue | Solution |
 |-------|----------|
-| "Access denied" message | Verify your Telegram user ID in `topology.json` |
+| "Access denied" message | Verify your Discord user ID in `topology.json` |
+| Slash commands not appearing | Wait a few minutes after first startup for Discord to sync commands globally |
 | No node data | Check Massa node is running and JSON-RPC endpoint is reachable |
 | Missing temperature data | Sensor may not be available on your system (non-critical) |
 | Graph generation fails | `pip install --upgrade matplotlib` |
@@ -177,8 +179,8 @@ Activity is logged to `bot_activity.log`.
 
 ## External Links
 
+- [Discord Developer Portal](https://discord.com/developers/applications)
+- [discord.py Documentation](https://discordpy.readthedocs.io/)
 - [API-Ninjas Documentation](https://www.api-ninjas.com/)
 - [Massa JSON-RPC API](https://docs.massa.net/docs/build/api/jsonrpc)
-- [Telegram Bot API](https://core.telegram.org/bots/api)
 - [MEXC API Documentation](https://mexcdevelop.github.io/apidocs/spot_v3_en/)
-- [python-telegram-bot Documentation](https://python-telegram-bot.readthedocs.io/)
