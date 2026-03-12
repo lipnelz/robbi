@@ -33,6 +33,38 @@ def save_balance_history(balance_history: dict) -> None:
         logging.error(f"Error saving balance history: {e}")
 
 
+def filter_since_midnight(history: dict) -> dict:
+    """Filter balance history to keep only entries recorded today after midnight.
+    Returns entries from the current day (00:00:00 onwards) in chronological order.
+    Keys are in "YYYY/MM/DD-HH:MM" format (with year).
+    Legacy keys in "DD/MM-HH:MM" format are also supported.
+    """
+    now = datetime.now()
+    midnight = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    current_year = now.year
+
+    entries = []
+    for key, value in history.items():
+        try:
+            dt = datetime.strptime(key, "%Y/%m/%d-%H:%M")
+        except ValueError:
+            try:
+                dt = datetime.strptime(key, "%d/%m-%H:%M").replace(year=current_year)
+                if dt > now + timedelta(hours=1):
+                    dt = dt.replace(year=current_year - 1)
+            except ValueError:
+                continue
+        if dt >= midnight:
+            entries.append((dt, key, value))
+
+    entries.sort(key=lambda x: x[0])
+
+    filtered = {}
+    for _, key, value in entries:
+        filtered[key] = value
+    return filtered
+
+
 def filter_last_24h(history: dict) -> dict:
     """Filter balance history to keep only one entry per hour from the last 24 hours.
     For each hour, the latest recorded entry is kept.

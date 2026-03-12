@@ -6,7 +6,7 @@ from telegram.ext import Application
 from apscheduler.schedulers.background import BackgroundScheduler
 from jrequests import get_addresses
 from handlers.node import extract_address_data
-from services.history import save_balance_history, filter_last_24h
+from services.history import save_balance_history, filter_last_24h, filter_since_midnight
 from config import (
     JOB_SCHED_NAME, NODE_IS_DOWN, NODE_IS_UP,
     TIMEOUT_NAME, TIMEOUT_FIRE_NAME,
@@ -156,19 +156,40 @@ async def periodic_node_ping(application: Application) -> None:
         # Send a detailed status report at scheduled hours (7h, 12h, 21h)
         if node_is_up and hour in (7, 12, 21):
             if balance_history:
-                # Compute balance evolution since the first recorded entry
-                timestamps = list(balance_history.keys())
-                balance_values = [float(balance.split(": ")[1]) for balance in balance_history.values()]
-
-                first_balance = balance_values[0] if balance_values else 0
-                first_timestamp = timestamps[0] if timestamps else "N/A"
-                last_balance = balance_values[-1] if balance_values else 0
-                last_timestamp = timestamps[-1] if timestamps else "N/A"
-                balance_change = last_balance - first_balance
-                change_percent = ((balance_change) / first_balance * 100) if first_balance != 0 else 0
-
-                # Only show the last 24 hours in the report
+                # Get entries from the last 24 hours (rolling window) and since today's midnight
                 recent_history = filter_last_24h(balance_history)
+                midnight_history = filter_since_midnight(balance_history)
+
+                # Pre-compute oldest balance in the 24h rolling window
+                if recent_history:
+                    oldest_24h_timestamp = next(iter(recent_history))
+                    oldest_24h_balance = float(next(iter(recent_history.values())).split(": ")[1])
+                else:
+                    oldest_24h_timestamp = None
+                    oldest_24h_balance = None
+
+                # "First" is the first balance recorded after midnight today
+                if midnight_history:
+                    first_timestamp = next(iter(midnight_history))
+                    first_balance = float(next(iter(midnight_history.values())).split(": ")[1])
+                elif oldest_24h_balance is not None:
+                    first_timestamp = oldest_24h_timestamp
+                    first_balance = oldest_24h_balance
+                else:
+                    first_timestamp = "N/A"
+                    first_balance = 0
+
+                # "Current" is the most recently recorded balance
+                last_timestamp = current_time_key
+                last_balance = float(data[0])
+
+                # "Change" is the difference over the last 24 hours (rolling window)
+                if oldest_24h_balance is not None:
+                    balance_change = last_balance - oldest_24h_balance
+                    change_percent = (balance_change / oldest_24h_balance * 100) if oldest_24h_balance != 0 else 0
+                else:
+                    balance_change = 0
+                    change_percent = 0
 
                 change_indicator = "📈" if balance_change >= 0 else "📉"
                 tmp_string = (
