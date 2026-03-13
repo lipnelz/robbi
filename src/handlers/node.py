@@ -5,8 +5,8 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import CallbackContext, ConversationHandler
 from jrequests import get_addresses, start_docker_node, stop_docker_node, exec_massa_client
 from handlers.common import auth_required, handle_api_error
-from services.history import save_balance_history
-from services.plotting import create_png_plot, create_balance_history_plot
+from services.history import save_balance_history, get_entry_balance, get_entry_temperature, get_entry_ram
+from services.plotting import create_png_plot, create_balance_history_plot, create_resources_plot
 from config import (
     LOG_FILE_NAME, FLUSH_CONFIRM_STATE, HIST_CONFIRM_STATE,
     DOCKER_MENU_STATE, DOCKER_START_CONFIRM_STATE, DOCKER_STOP_CONFIRM_STATE,
@@ -201,7 +201,7 @@ async def flush_confirm_no(update: Update, context: CallbackContext) -> int:
 
 
 async def hist(update: Update, context: CallbackContext) -> int:
-    """Handle /hist command: send balance history chart, then ask for text summary.
+    """Handle /hist command: send balance and resources history charts, then ask for text summary.
     This is a ConversationHandler entry point (cannot use @auth_required).
     """
     user_id = str(update.effective_user.id)
@@ -219,6 +219,7 @@ async def hist(update: Update, context: CallbackContext) -> int:
         return ConversationHandler.END
 
     image_path = None
+    resources_path = None
     try:
         # Generate a balance-over-time chart
         try:
@@ -233,7 +234,7 @@ async def hist(update: Update, context: CallbackContext) -> int:
             await update.message.reply_text("Error creating history image.")
             return ConversationHandler.END
 
-        # Send the chart image to the user
+        # Send the balance chart image to the user
         try:
             with open(image_path, 'rb') as image_file:
                 await update.message.reply_photo(photo=image_file)
@@ -245,6 +246,16 @@ async def hist(update: Update, context: CallbackContext) -> int:
             logging.error(f"Error while sending history image : {e}")
             await update.message.reply_text("Error sending history image.")
             return ConversationHandler.END
+
+        # Generate and send the resources (temperature + RAM) chart when data is available
+        try:
+            resources_path = create_resources_plot(balance_history)
+            if resources_path and os.path.exists(resources_path):
+                with open(resources_path, 'rb') as resources_file:
+                    await update.message.reply_photo(photo=resources_file)
+        except Exception as e:
+            logging.error(f"Error creating or sending resources plot: {e}")
+            # Non-fatal: continue without the resources chart
 
         # Ask if the user also wants the history as a text message
         keyboard = [
@@ -266,14 +277,15 @@ async def hist(update: Update, context: CallbackContext) -> int:
         await update.message.reply_text("Error retrieving balance history.")
         return ConversationHandler.END
     finally:
-        # Always clean up the temporary chart image
-        if image_path:
-            try:
-                if os.path.exists(image_path):
-                    os.remove(image_path)
-                    logging.info(f"{image_path} has been deleted.")
-            except Exception as e:
-                logging.error(f"Error deleting image file {image_path}: {e}")
+        # Always clean up the temporary chart images
+        for path in (image_path, resources_path):
+            if path:
+                try:
+                    if os.path.exists(path):
+                        os.remove(path)
+                        logging.info(f"{path} has been deleted.")
+                except Exception as e:
+                    logging.error(f"Error deleting image file {path}: {e}")
 
 
 async def hist_confirm_yes(update: Update, context: CallbackContext) -> int:
@@ -294,8 +306,18 @@ async def hist_confirm_yes(update: Update, context: CallbackContext) -> int:
             return ConversationHandler.END
 
         # Format all history entries as a single text message
+        def _format_entry(time_key: str, value) -> str:
+            line = f"{time_key}: Balance {get_entry_balance(value):.2f}"
+            temp = get_entry_temperature(value)
+            ram = get_entry_ram(value)
+            if temp is not None:
+                line += f", Temp {temp:.1f}°C"
+            if ram is not None:
+                line += f", RAM {ram:.1f}%"
+            return line
+
         tmp_string = "History\n" + "\n".join(
-            f"{time_key}: {balance}" for time_key, balance in balance_history.items()
+            _format_entry(time_key, value) for time_key, value in balance_history.items()
         )
 
         await query.edit_message_text(text="✓ Sending balance history...")

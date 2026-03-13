@@ -4,9 +4,9 @@ import asyncio
 from datetime import datetime
 from telegram.ext import Application
 from apscheduler.schedulers.background import BackgroundScheduler
-from jrequests import get_addresses
+from jrequests import get_addresses, get_system_stats
 from handlers.node import extract_address_data
-from services.history import save_balance_history, filter_last_24h, filter_since_midnight
+from services.history import save_balance_history, filter_last_24h, filter_since_midnight, get_entry_balance, get_entry_temperature, get_entry_ram
 from config import (
     JOB_SCHED_NAME, NODE_IS_DOWN, NODE_IS_UP,
     TIMEOUT_NAME, TIMEOUT_FIRE_NAME,
@@ -140,17 +140,29 @@ async def periodic_node_ping(application: Application) -> None:
         else:
             logging.info("Node is up.")
 
-        # Record current balance snapshot with timestamp
+        # Record current balance snapshot with timestamp, including system resources
         now = datetime.now()
         hour, minute, day, month, year = now.hour, now.minute, now.day, now.month, now.year
         current_time_key = f"{year}/{month:02d}/{day:02d}-{hour:02d}:{minute:02d}"
+
+        # Collect CPU temperature and RAM usage
+        system_stats = get_system_stats(logging)
+        temperature_avg = system_stats.get("temperature_avg")
+        ram_percent = system_stats.get("ram_percent")
+
+        entry = {"balance": float(data[0])}
+        if temperature_avg is not None:
+            entry["temperature_avg"] = temperature_avg
+        if ram_percent is not None:
+            entry["ram_percent"] = ram_percent
+
         lock = application.bot_data.get('balance_lock')
         if lock:
             with lock:
-                balance_history[current_time_key] = f"Balance: {float(data[0]):.2f}"
+                balance_history[current_time_key] = entry
                 save_balance_history(balance_history)
         else:
-            balance_history[current_time_key] = f"Balance: {float(data[0]):.2f}"
+            balance_history[current_time_key] = entry
             save_balance_history(balance_history)
 
         # Send a detailed status report at scheduled hours (7h, 12h, 21h)
@@ -163,7 +175,7 @@ async def periodic_node_ping(application: Application) -> None:
                 # Pre-compute oldest balance in the 24h rolling window
                 if recent_history:
                     oldest_24h_timestamp = next(iter(recent_history))
-                    oldest_24h_balance = float(next(iter(recent_history.values())).split(": ")[1])
+                    oldest_24h_balance = get_entry_balance(next(iter(recent_history.values())))
                 else:
                     oldest_24h_timestamp = None
                     oldest_24h_balance = None
@@ -171,7 +183,7 @@ async def periodic_node_ping(application: Application) -> None:
                 # "First" is the first balance recorded after midnight today
                 if midnight_history:
                     first_timestamp = next(iter(midnight_history))
-                    first_balance = float(next(iter(midnight_history.values())).split(": ")[1])
+                    first_balance = get_entry_balance(next(iter(midnight_history.values())))
                 elif oldest_24h_balance is not None:
                     first_timestamp = oldest_24h_timestamp
                     first_balance = oldest_24h_balance
@@ -192,6 +204,18 @@ async def periodic_node_ping(application: Application) -> None:
                     change_percent = 0
 
                 change_indicator = "📈" if balance_change >= 0 else "📉"
+
+                # Compute 24h average temperature from resource entries
+                temp_samples = [
+                    get_entry_temperature(v)
+                    for v in recent_history.values()
+                    if get_entry_temperature(v) is not None
+                ]
+                avg_temp_str = (
+                    f"🌡️ Avg CPU Temp (24h): {sum(temp_samples) / len(temp_samples):.1f}°C\n"
+                    if temp_samples else ""
+                )
+
                 tmp_string = (
                     f"{NODE_IS_UP}\n"
                     f"\n"
@@ -200,10 +224,15 @@ async def periodic_node_ping(application: Application) -> None:
                     f"Current: {last_balance:.2f} ({last_timestamp})\n"
                     f"Change: {change_indicator} {balance_change:+.2f} ({change_percent:+.2f}%)\n"
                     f"\n"
+                    f"{avg_temp_str}"
                     f"📊 Last 24h History:\n"
                     f"{'─' * 40}\n" +
-                    ("\n".join(f"{timestamp}: {balance}" for timestamp, balance in recent_history.items())
-                     if recent_history else "No data in the last 24h.")
+                    ("\n".join(
+                        f"{timestamp}: Balance {get_entry_balance(v):.2f}"
+                        + (f", Temp {get_entry_temperature(v):.1f}°C" if get_entry_temperature(v) is not None else "")
+                        + (f", RAM {get_entry_ram(v):.1f}%" if get_entry_ram(v) is not None else "")
+                        for timestamp, v in recent_history.items()
+                    ) if recent_history else "No data in the last 24h.")
                 )
             else:
                 tmp_string = NODE_IS_UP
