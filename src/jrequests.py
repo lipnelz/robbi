@@ -235,6 +235,11 @@ def exec_massa_client(logger, container_name: str, password: str, command: str) 
         cmd = ['./massa-client', '-p', password, '-a'] + command.split()
         exit_code, output = container.exec_run(cmd, workdir='/massa/massa-client')
         decoded = output.decode('utf-8', errors='replace').strip()
+
+        # Send exit command to cleanly close the massa-client session
+        exit_cmd = ['./massa-client', '-p', password, '-a', 'exit']
+        container.exec_run(exit_cmd, workdir='/massa/massa-client')
+
         if exit_code == 0:
             logger.info(f"massa-client command '{command}' executed successfully.")
             return {"status": "ok", "output": decoded}
