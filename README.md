@@ -5,7 +5,8 @@ Robbi is a Telegram bot that monitors a [Massa](https://massa.net/) blockchain n
 ## Features
 
 - **Massa node monitoring** — Periodically checks node status every 60 minutes and alerts when the node goes down
-- **Balance history** — Persisted to JSON file (`config/balance_history.json`), survives Docker restarts. Periodic reports show last 24h of data
+- **Balance history** — Persisted to JSON file (`config/balance_history.json`), survives Docker restarts. Records balance, CPU temperature, and RAM usage per snapshot
+- **Scheduled reports** — Automatic status reports at 7 AM, 12 PM, and 9 PM with 24h balance change, average temperature, and history data
 - **Crypto price tracking** — Real-time Bitcoin (API-Ninjas) and Massa/USDT (MEXC) prices
 - **System monitoring** — Per-core CPU usage, RAM, and per-sensor temperature details
 - **Node performance** — RPC latency measurement and uptime percentage (last 24h)
@@ -17,24 +18,28 @@ Robbi is a Telegram bot that monitors a [Massa](https://massa.net/) blockchain n
 
 ```
 src/
-├── main.py                  # Entry point: config, bot_data setup, handler registration
-├── config.py                # Constants, logging config, command list
-├── jrequests.py             # External API calls (Massa JSON-RPC, API-Ninjas, MEXC, Docker SDK)
+├── main.py                         # Entry point: config, bot_data setup, handler registration
+├── config.py                       # Constants, conversation states, logging config, command list
 ├── Dockerfile
 ├── entrypoint.sh
 ├── handlers/
-│   ├── common.py            # auth_required decorator, handle_api_error helper
-│   ├── node.py              # /node, /flush, /hist, /docker commands
-│   ├── price.py             # /btc, /mas commands
-│   ├── system.py            # /hi, /temperature, /perf commands
-│   └── scheduler.py         # Periodic node ping (APScheduler)
+│   ├── common.py                   # auth_required decorator, handle_api_error helper
+│   ├── node.py                     # /node, /flush, /hist, /docker commands
+│   ├── price.py                    # /btc, /mas commands
+│   ├── system.py                   # /hi, /temperature, /perf commands
+│   └── scheduler.py                # Periodic node ping (APScheduler, every 60 min)
 ├── services/
-│   ├── history.py           # Balance history load/save/filter (JSON persistence)
-│   └── plotting.py          # Chart generation (matplotlib)
-└── media/                   # Images used in bot responses
+│   ├── docker_manager.py           # Docker SDK wrapper (start/stop container, exec massa-client)
+│   ├── history.py                  # Balance history load/save/filter (JSON persistence)
+│   ├── http_client.py              # Safe HTTP request wrapper with retry logic
+│   ├── massa_rpc.py                # Massa blockchain JSON-RPC calls
+│   ├── plotting.py                 # Chart generation (matplotlib) — validation, resources, balance
+│   ├── price_api.py                # External price API wrappers (API-Ninjas, MEXC)
+│   └── system_monitor.py           # System stats via psutil (CPU, RAM, temperatures)
+└── media/                          # Images used in bot responses
 ```
 
-Shared state (`allowed_user_ids`, `massa_node_address`, `ninja_key`, `balance_history`, `docker_container_name`, etc.) is stored in `application.bot_data` and accessed via `context.bot_data` in handlers — no global variables.
+Shared state (`allowed_user_ids`, `massa_node_address`, `ninja_key`, `balance_history`, `docker_container_name`, etc.) is stored in `application.bot_data` and accessed via `context.bot_data` in handlers — no global variables. A threading lock protects concurrent history updates.
 
 ## Configuration
 
@@ -72,13 +77,13 @@ All commands require authentication via `topology.json` whitelist.
 
 | Command | Description |
 |---------|-------------|
-| `/hi` | Greeting with a custom image |
+| `/hi` | Greeting with a custom image and current git commit hash |
 | `/node` | Node status: balance, roll count, OK/NOK counts, active rolls + validation chart |
 | `/btc` | Bitcoin price: USD price, 24h change, high/low, volume |
 | `/mas` | Massa/USDT price from MEXC: price, change, high/low, volume |
 | `/temperature` | System stats: per-sensor temperatures, per-core CPU usage, RAM |
 | `/perf` | Node performance: RPC latency and uptime percentage (last 24h) |
-| `/hist` | Balance history chart + optional text summary |
+| `/hist` | Balance history chart (balance, temperature, RAM) + optional text summary |
 | `/flush` | Clear logs with confirmation dialog (option to also clear balance history) |
 | `/docker` | Docker management menu (see below) |
 
