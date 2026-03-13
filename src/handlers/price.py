@@ -2,7 +2,7 @@ import logging
 import asyncio
 from telegram import Update
 from telegram.ext import CallbackContext
-from jrequests import get_bitcoin_price, get_mas_instant, get_mas_daily
+from services.price_api import get_bitcoin_price, get_mas_instant, get_mas_daily
 from handlers.common import auth_required, handle_api_error
 from config import BTC_CRY_NAME, MAS_CRY_NAME
 

@@ -3,7 +3,8 @@ import subprocess
 from datetime import datetime, timedelta
 from telegram import Update
 from telegram.ext import CallbackContext
-from jrequests import get_system_stats, measure_rpc_latency
+from services.system_monitor import get_system_stats
+from services.massa_rpc import measure_rpc_latency
 from handlers.common import auth_required
 from config import BUDDY_FILE_NAME
 
