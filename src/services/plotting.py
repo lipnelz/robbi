@@ -36,8 +36,8 @@ def create_png_plot(cycles: List[int], nok_counts: List[int], ok_counts: List[in
 
 def create_resources_plot(resource_history: dict) -> str:
     """
-    Creates a two-panel line plot showing CPU temperature (°C) and RAM usage (%)
-    over time from history entries, and saves it as a PNG image.
+    Creates a line plot showing CPU temperature (°C) and RAM usage (%)
+    over time on the same graph with dual Y-axes, and saves it as a PNG image.
 
     Only entries that carry resource data (new dict format) are plotted.
     Returns an empty string when no resource data is available.
@@ -62,43 +62,49 @@ def create_resources_plot(resource_history: dict) -> str:
     temp_values = [t if t is not None else math.nan for t in temperatures]
     ram_values = [r if r is not None else math.nan for r in ram_percents]
 
-    n_panels = sum([has_temperature, has_ram])
-    fig, axes = plt.subplots(n_panels, 1, figsize=(12, 4 * n_panels))
-    if n_panels == 1:
-        axes = [axes]
+    fig, ax1 = plt.subplots(figsize=(12, 6))
+    x = range(len(timestamps))
 
     try:
-        idx = 0
-        x = range(len(timestamps))
-
+        # Plot temperature on the left Y-axis (if available)
         if has_temperature:
-            axes[idx].plot(
+            color_temp = 'orange'
+            ax1.set_xlabel('Time')
+            ax1.set_ylabel('Temperature (°C)', color=color_temp)
+            ax1.plot(
                 x, temp_values, marker='o', linestyle='-',
-                color='orange', linewidth=2, markersize=6, label='Temperature (°C)',
+                color=color_temp, linewidth=2, markersize=6, label='Temperature (°C)',
             )
-            axes[idx].set_title('CPU Temperature Over Time')
-            axes[idx].set_xlabel('Time')
-            axes[idx].set_ylabel('Temperature (°C)')
-            axes[idx].set_xticks(list(x))
-            axes[idx].set_xticklabels(timestamps, rotation=45, ha='right')
-            axes[idx].legend()
-            axes[idx].grid(True, alpha=0.3)
-            idx += 1
+            ax1.tick_params(axis='y', labelcolor=color_temp)
+            ax1.set_xticks(list(x))
+            ax1.set_xticklabels(timestamps, rotation=45, ha='right')
+            ax1.grid(True, alpha=0.3)
 
+        # Plot RAM on the right Y-axis (if available)
         if has_ram:
-            axes[idx].plot(
-                x, ram_values, marker='o', linestyle='-',
-                color='purple', linewidth=2, markersize=6, label='RAM Usage (%)',
+            ax2 = ax1.twinx()
+            color_ram = 'purple'
+            ax2.set_ylabel('RAM Usage (%)', color=color_ram)
+            ax2.plot(
+                x, ram_values, marker='s', linestyle='-',
+                color=color_ram, linewidth=2, markersize=6, label='RAM Usage (%)',
             )
-            axes[idx].set_title('RAM Usage Over Time')
-            axes[idx].set_xlabel('Time')
-            axes[idx].set_ylabel('RAM (%)')
-            axes[idx].set_xticks(list(x))
-            axes[idx].set_xticklabels(timestamps, rotation=45, ha='right')
-            axes[idx].legend()
-            axes[idx].grid(True, alpha=0.3)
+            ax2.tick_params(axis='y', labelcolor=color_ram)
 
-        plt.tight_layout()
+        fig.suptitle('System Resources Over Time', fontsize=14, fontweight='bold')
+        fig.tight_layout()
+
+        # Add legend from both axes
+        if has_temperature:
+            lines1, labels1 = ax1.get_legend_handles_labels()
+            if has_ram:
+                ax2_obj = ax1.get_shared_x_axes().get_siblings(ax1)[0] if hasattr(ax1.get_shared_x_axes(), 'get_siblings') else None
+                if 'ax2' in locals():
+                    lines2, labels2 = ax2.get_legend_handles_labels()
+                    ax1.legend(lines1 + lines2, labels1 + labels2, loc='upper left')
+            else:
+                ax1.legend(lines1, labels1, loc='upper left')
+
         resources_plot_name = RESOURCES_PLOT_FILE_NAME
         plt.savefig(resources_plot_name)
     finally:
