@@ -3,7 +3,7 @@ import logging
 from datetime import datetime
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import CallbackContext, ConversationHandler
-from jrequests import get_addresses, start_docker_node, stop_docker_node, exec_massa_client
+from jrequests import get_addresses, get_system_stats, start_docker_node, stop_docker_node, exec_massa_client
 from handlers.common import auth_required, handle_api_error
 from services.history import save_balance_history, get_entry_balance, get_entry_temperature, get_entry_ram
 from services.plotting import create_png_plot, create_balance_history_plot, create_resources_plot
@@ -66,12 +66,23 @@ async def node(update: Update, context: CallbackContext) -> None:
         )
         await update.message.reply_text('Node status: ' + formatted_string)
 
-        # Record current balance snapshot with timestamp
+        # Record current balance snapshot with timestamp, including system resources
         now = datetime.now()
         time_key = f"{now.year}/{now.month:02d}/{now.day:02d}-{now.hour:02d}:{now.minute:02d}"
+
+        system_stats = get_system_stats(logging)
+        temperature_avg = system_stats.get("temperature_avg")
+        ram_percent = system_stats.get("ram_percent")
+
+        entry = {"balance": float(data[0])}
+        if temperature_avg is not None:
+            entry["temperature_avg"] = temperature_avg
+        if ram_percent is not None:
+            entry["ram_percent"] = ram_percent
+
         lock = context.bot_data['balance_lock']
         with lock:
-            balance_history[time_key] = f"Balance: {float(data[0]):.2f}"
+            balance_history[time_key] = entry
             save_balance_history(balance_history)
 
         # Generate and send a validation chart (OK/NOK counts per cycle)
