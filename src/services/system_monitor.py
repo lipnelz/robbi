@@ -20,9 +20,9 @@ def get_system_stats(logger) -> dict:
         logger = logging.getLogger()
 
     try:
-        # Get overall CPU and per-core CPU usage
-        cpu_overall = psutil.cpu_percent(interval=1)
+        # Get per-core CPU usage (single blocking call) and derive overall average
         cpu_per_core = psutil.cpu_percent(interval=1, percpu=True)
+        cpu_overall = round(sum(cpu_per_core) / len(cpu_per_core), 1) if cpu_per_core else 0
 
         stats = {
             "cpu_percent": cpu_overall,
