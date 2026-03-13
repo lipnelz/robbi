@@ -34,7 +34,7 @@ def extract_address_data(json_data: dict):
         nok_counts = [info["nok_count"] for info in result["cycle_infos"]]
         active_rolls = [info["active_rolls"] for info in result["cycle_infos"]]
         return final_balance, final_roll_count, cycles, ok_counts, nok_counts, active_rolls
-    return "", 0, [], [], [], []
+    return None
 
 
 @auth_required
@@ -53,7 +53,7 @@ async def node(update: Update, context: CallbackContext) -> None:
 
         # Parse the response into individual fields
         data = extract_address_data(json_data)
-        if not data or len(data) < 6:
+        if data is None:
             logging.error("Node unreachable or no data available")
             await update.message.reply_text("Node unreachable or no data available.")
             return

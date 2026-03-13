@@ -122,7 +122,7 @@ async def periodic_node_ping(application: Application) -> None:
         data = extract_address_data(json_data)
         logging.info(data)
 
-        if not data or len(data) < 6:
+        if data is None:
             logging.error("Invalid data.")
             for user_id in allowed_user_ids:
                 await application.bot.send_message(chat_id=user_id, text="Ping failed, invalid data.")
