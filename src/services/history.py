@@ -1,10 +1,56 @@
 import os
 import json
 import logging
+from typing import Optional
 from datetime import datetime, timedelta
 
 
 BALANCE_HISTORY_FILE = 'config/balance_history.json'
+
+
+def get_entry_balance(value) -> float:
+    """Extract the balance from a history entry.
+
+    Supports both the legacy string format ("Balance: X.XX") and the new
+    dict format ({"balance": X.XX, ...}).
+
+    :param value: A history entry value (str or dict).
+    :return: The balance as a float, or 0.0 on parse failure.
+    """
+    if isinstance(value, dict):
+        return float(value.get("balance", 0.0))
+    try:
+        return float(str(value).split(": ")[1])
+    except (IndexError, ValueError):
+        return 0.0
+
+
+def get_entry_temperature(value) -> Optional[float]:
+    """Extract the average CPU temperature from a history entry.
+
+    Only available in the new dict format.  Returns None for legacy string
+    entries or when the sensor was unavailable at recording time.
+
+    :param value: A history entry value (str or dict).
+    :return: Temperature in °C as a float, or None.
+    """
+    if isinstance(value, dict):
+        return value.get("temperature_avg")
+    return None
+
+
+def get_entry_ram(value) -> Optional[float]:
+    """Extract the RAM usage percentage from a history entry.
+
+    Only available in the new dict format.  Returns None for legacy string
+    entries.
+
+    :param value: A history entry value (str or dict).
+    :return: RAM usage as a float percentage, or None.
+    """
+    if isinstance(value, dict):
+        return value.get("ram_percent")
+    return None
 
 
 def load_balance_history() -> dict:
