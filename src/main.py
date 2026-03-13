@@ -1,4 +1,4 @@
-import io
+import os
 import sys
 import json
 import logging
@@ -33,8 +33,9 @@ HANDLER_MAP = {
 
 def disable_prints() -> None:
     """Redirect stdout and stderr to suppress all print output."""
-    sys.stdout = io.StringIO()
-    sys.stderr = io.StringIO()
+    devnull = open(os.devnull, 'w')
+    sys.stdout = devnull
+    sys.stderr = devnull
 
 
 async def post_init(application: Application) -> None:
