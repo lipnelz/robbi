@@ -6,7 +6,7 @@ import threading
 from telegram import BotCommand
 from telegram.ext import Application, CommandHandler, ContextTypes, ConversationHandler, CallbackQueryHandler, MessageHandler, filters
 from telegram.request import HTTPXRequest
-from jrequests import get_addresses
+from services.massa_rpc import get_addresses
 from services.history import load_balance_history
 from config import (
     FLUSH_CONFIRM_STATE, HIST_CONFIRM_STATE, COMMANDS_LIST,

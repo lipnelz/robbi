@@ -4,7 +4,8 @@ import asyncio
 from datetime import datetime
 from telegram.ext import Application
 from apscheduler.schedulers.background import BackgroundScheduler
-from jrequests import get_addresses, get_system_stats
+from services.massa_rpc import get_addresses
+from services.system_monitor import get_system_stats
 from handlers.node import extract_address_data
 from services.history import save_balance_history, filter_last_24h, filter_since_midnight, get_entry_balance, get_entry_temperature, get_entry_ram
 from config import (

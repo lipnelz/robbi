@@ -3,10 +3,12 @@ import logging
 from datetime import datetime
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import CallbackContext, ConversationHandler
-from jrequests import get_addresses, get_system_stats, start_docker_node, stop_docker_node, exec_massa_client
+from services.massa_rpc import get_addresses
+from services.docker_manager import start_docker_node, stop_docker_node, exec_massa_client
 from handlers.common import auth_required, handle_api_error
 from services.history import save_balance_history, get_entry_balance, get_entry_temperature, get_entry_ram
 from services.plotting import create_png_plot, create_balance_history_plot, create_resources_plot
+from services.system_monitor import get_system_stats
 from config import (
     LOG_FILE_NAME, FLUSH_CONFIRM_STATE, HIST_CONFIRM_STATE,
     DOCKER_MENU_STATE, DOCKER_START_CONFIRM_STATE, DOCKER_STOP_CONFIRM_STATE,
