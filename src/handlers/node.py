@@ -1,12 +1,14 @@
 import os
 import logging
-from datetime import datetime
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import CallbackContext, ConversationHandler
 from services.massa_rpc import get_addresses
 from services.docker_manager import start_docker_node, stop_docker_node, exec_massa_client
-from handlers.common import auth_required, handle_api_error
-from services.history import save_balance_history, get_entry_balance, get_entry_temperature, get_entry_ram
+from handlers.common import auth_required, cb_auth_required, handle_api_error, safe_delete_file
+from services.history import (
+    save_balance_history,
+    make_time_key, build_balance_entry, format_history_entry,
+)
 from services.plotting import create_png_plot, create_balance_history_plot, create_resources_plot
 from services.system_monitor import get_system_stats
 from config import (
@@ -16,6 +18,23 @@ from config import (
     DOCKER_SELLROLLS_INPUT_STATE, DOCKER_SELLROLLS_CONFIRM_STATE,
     PAT_FILE_NAME,
 )
+
+
+_DOCKER_MENU_TEXT = "🐳 Docker Node Management\nWhat do you want to do?"
+
+
+def _build_docker_main_menu_markup() -> InlineKeyboardMarkup:
+    """Build the main Docker management inline keyboard."""
+    keyboard = [
+        [
+            InlineKeyboardButton("▶️ Start", callback_data='docker_start'),
+            InlineKeyboardButton("⏹️ Stop", callback_data='docker_stop'),
+        ],
+        [
+            InlineKeyboardButton("💻 Massa Client", callback_data='docker_massa'),
+        ],
+    ]
+    return InlineKeyboardMarkup(keyboard)
 
 
 def extract_address_data(json_data: dict):
@@ -69,18 +88,9 @@ async def node(update: Update, context: CallbackContext) -> None:
         await update.message.reply_text('Node status: ' + formatted_string)
 
         # Record current balance snapshot with timestamp, including system resources
-        now = datetime.now()
-        time_key = f"{now.year}/{now.month:02d}/{now.day:02d}-{now.hour:02d}:{now.minute:02d}"
-
         system_stats = get_system_stats(logging)
-        temperature_avg = system_stats.get("temperature_avg")
-        ram_percent = system_stats.get("ram_percent")
-
-        entry = {"balance": float(data[0])}
-        if temperature_avg is not None:
-            entry["temperature_avg"] = temperature_avg
-        if ram_percent is not None:
-            entry["ram_percent"] = ram_percent
+        time_key = make_time_key()
+        entry = build_balance_entry(float(data[0]), system_stats)
 
         lock = context.bot_data['balance_lock']
         with lock:
@@ -105,13 +115,7 @@ async def node(update: Update, context: CallbackContext) -> None:
         await update.message.reply_photo(photo=f'media/{PAT_FILE_NAME}')
     finally:
         # Always clean up the temporary chart image
-        if image_path:
-            try:
-                if os.path.exists(image_path):
-                    os.remove(image_path)
-                    logging.info(f"{image_path} has been deleted.")
-            except Exception as e:
-                logging.error(f"Error deleting image file {image_path}: {e}")
+        safe_delete_file(image_path)
 
 
 async def flush(update: Update, context: CallbackContext) -> int:
@@ -152,16 +156,12 @@ async def flush(update: Update, context: CallbackContext) -> int:
     return FLUSH_CONFIRM_STATE
 
 
+@cb_auth_required
 async def flush_confirm_yes(update: Update, context: CallbackContext) -> int:
     """Callback for flush 'Yes': clear both log file and balance history."""
     query = update.callback_query
     user_id = str(query.from_user.id)
     logging.info(f'User {user_id} confirmed flush with balance history clear.')
-    allowed_user_ids = context.bot_data.get('allowed_user_ids', set())
-
-    if user_id not in allowed_user_ids:
-        await query.answer("Access denied.", show_alert=True)
-        return ConversationHandler.END
 
     try:
         # Truncate the log file
@@ -186,16 +186,12 @@ async def flush_confirm_yes(update: Update, context: CallbackContext) -> int:
     return ConversationHandler.END
 
 
+@cb_auth_required
 async def flush_confirm_no(update: Update, context: CallbackContext) -> int:
     """Callback for flush 'No': clear only the log file, keep balance history."""
     query = update.callback_query
     user_id = str(query.from_user.id)
     logging.info(f'User {user_id} confirmed flush without balance history clear.')
-    allowed_user_ids = context.bot_data.get('allowed_user_ids', set())
-
-    if user_id not in allowed_user_ids:
-        await query.answer("Access denied.", show_alert=True)
-        return ConversationHandler.END
 
     try:
         # Truncate the log file only
@@ -292,26 +288,16 @@ async def hist(update: Update, context: CallbackContext) -> int:
     finally:
         # Always clean up the temporary chart images
         for path in (image_path, resources_path):
-            if path:
-                try:
-                    if os.path.exists(path):
-                        os.remove(path)
-                        logging.info(f"{path} has been deleted.")
-                except Exception as e:
-                    logging.error(f"Error deleting image file {path}: {e}")
+            safe_delete_file(path)
 
 
+@cb_auth_required
 async def hist_confirm_yes(update: Update, context: CallbackContext) -> int:
     """Callback for hist 'Yes': send the full balance history as text."""
     query = update.callback_query
     user_id = str(query.from_user.id)
     logging.info(f'User {user_id} confirmed hist with text summary.')
-    allowed_user_ids = context.bot_data.get('allowed_user_ids', set())
     balance_history = context.bot_data['balance_history']
-
-    if user_id not in allowed_user_ids:
-        await query.answer("Access denied.", show_alert=True)
-        return ConversationHandler.END
 
     try:
         if not balance_history:
@@ -319,18 +305,8 @@ async def hist_confirm_yes(update: Update, context: CallbackContext) -> int:
             return ConversationHandler.END
 
         # Format all history entries as a single text message
-        def _format_entry(time_key: str, value) -> str:
-            line = f"{time_key}: Balance {get_entry_balance(value):.2f}"
-            temp = get_entry_temperature(value)
-            ram = get_entry_ram(value)
-            if temp is not None:
-                line += f", Temp {temp:.1f}°C"
-            if ram is not None:
-                line += f", RAM {ram:.1f}%"
-            return line
-
         tmp_string = "History\n" + "\n".join(
-            _format_entry(time_key, value) for time_key, value in balance_history.items()
+            format_history_entry(time_key, value) for time_key, value in balance_history.items()
         )
 
         await query.edit_message_text(text="✓ Sending balance history...")
@@ -344,16 +320,12 @@ async def hist_confirm_yes(update: Update, context: CallbackContext) -> int:
     return ConversationHandler.END
 
 
+@cb_auth_required
 async def hist_confirm_no(update: Update, context: CallbackContext) -> int:
     """Callback for hist 'No': dismiss the prompt."""
     query = update.callback_query
     user_id = str(query.from_user.id)
     logging.info(f'User {user_id} declined hist text summary.')
-    allowed_user_ids = context.bot_data.get('allowed_user_ids', set())
-
-    if user_id not in allowed_user_ids:
-        await query.answer("Access denied.", show_alert=True)
-        return ConversationHandler.END
 
     try:
         await query.edit_message_text(text="✓ Done.")
@@ -378,37 +350,20 @@ async def docker(update: Update, context: CallbackContext) -> int:
         await update.message.reply_text("Access denied. You are not authorized.")
         return ConversationHandler.END
 
-    # Present inline keyboard: Start, Stop or Massa Client
-    keyboard = [
-        [
-            InlineKeyboardButton("▶️ Start", callback_data='docker_start'),
-            InlineKeyboardButton("⏹️ Stop", callback_data='docker_stop')
-        ],
-        [
-            InlineKeyboardButton("💻 Massa Client", callback_data='docker_massa')
-        ]
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-
     await update.message.reply_text(
-        "🐳 Docker Node Management\n"
-        "What do you want to do?",
-        reply_markup=reply_markup
+        _DOCKER_MENU_TEXT,
+        reply_markup=_build_docker_main_menu_markup(),
     )
 
     return DOCKER_MENU_STATE
 
 
+@cb_auth_required
 async def docker_start(update: Update, context: CallbackContext) -> int:
     """Callback for docker 'Start': ask for confirmation."""
     query = update.callback_query
     user_id = str(query.from_user.id)
     logging.info(f'User {user_id} selected Start in docker menu.')
-    allowed_user_ids = context.bot_data.get('allowed_user_ids', set())
-
-    if user_id not in allowed_user_ids:
-        await query.answer("Access denied.", show_alert=True)
-        return ConversationHandler.END
 
     keyboard = [
         [
@@ -427,16 +382,12 @@ async def docker_start(update: Update, context: CallbackContext) -> int:
     return DOCKER_START_CONFIRM_STATE
 
 
+@cb_auth_required
 async def docker_stop(update: Update, context: CallbackContext) -> int:
     """Callback for docker 'Stop': ask for confirmation."""
     query = update.callback_query
     user_id = str(query.from_user.id)
     logging.info(f'User {user_id} selected Stop in docker menu.')
-    allowed_user_ids = context.bot_data.get('allowed_user_ids', set())
-
-    if user_id not in allowed_user_ids:
-        await query.answer("Access denied.", show_alert=True)
-        return ConversationHandler.END
 
     keyboard = [
         [
@@ -455,16 +406,12 @@ async def docker_stop(update: Update, context: CallbackContext) -> int:
     return DOCKER_STOP_CONFIRM_STATE
 
 
+@cb_auth_required
 async def docker_start_confirm(update: Update, context: CallbackContext) -> int:
     """Callback for docker start confirmation: execute docker start command."""
     query = update.callback_query
     user_id = str(query.from_user.id)
     logging.info(f'User {user_id} confirmed docker start.')
-    allowed_user_ids = context.bot_data.get('allowed_user_ids', set())
-
-    if user_id not in allowed_user_ids:
-        await query.answer("Access denied.", show_alert=True)
-        return ConversationHandler.END
 
     try:
         # Get container name from bot_data (must be set in main.py from topology.json)
@@ -492,16 +439,12 @@ async def docker_start_confirm(update: Update, context: CallbackContext) -> int:
     return ConversationHandler.END
 
 
+@cb_auth_required
 async def docker_stop_confirm(update: Update, context: CallbackContext) -> int:
     """Callback for docker stop confirmation: execute docker stop command."""
     query = update.callback_query
     user_id = str(query.from_user.id)
     logging.info(f'User {user_id} confirmed docker stop.')
-    allowed_user_ids = context.bot_data.get('allowed_user_ids', set())
-
-    if user_id not in allowed_user_ids:
-        await query.answer("Access denied.", show_alert=True)
-        return ConversationHandler.END
 
     try:
         # Get container name from bot_data (must be set in main.py from topology.json)
@@ -529,16 +472,12 @@ async def docker_stop_confirm(update: Update, context: CallbackContext) -> int:
     return ConversationHandler.END
 
 
+@cb_auth_required
 async def docker_cancel(update: Update, context: CallbackContext) -> int:
     """Callback for docker cancel: dismiss the action."""
     query = update.callback_query
     user_id = str(query.from_user.id)
     logging.info(f'User {user_id} cancelled docker action.')
-    allowed_user_ids = context.bot_data.get('allowed_user_ids', set())
-
-    if user_id not in allowed_user_ids:
-        await query.answer("Access denied.", show_alert=True)
-        return ConversationHandler.END
 
     try:
         await query.edit_message_text(text="❌ Action cancelled.")
@@ -550,16 +489,12 @@ async def docker_cancel(update: Update, context: CallbackContext) -> int:
     return ConversationHandler.END
 
 
+@cb_auth_required
 async def docker_massa(update: Update, context: CallbackContext) -> int:
     """Callback for docker 'Massa Client': show wallet_info / buy_rolls sub-menu."""
     query = update.callback_query
     user_id = str(query.from_user.id)
     logging.info(f'User {user_id} selected Massa Client in docker menu.')
-    allowed_user_ids = context.bot_data.get('allowed_user_ids', set())
-
-    if user_id not in allowed_user_ids:
-        await query.answer("Access denied.", show_alert=True)
-        return ConversationHandler.END
 
     keyboard = [
         [
@@ -585,16 +520,12 @@ async def docker_massa(update: Update, context: CallbackContext) -> int:
     return DOCKER_MASSA_MENU_STATE
 
 
+@cb_auth_required
 async def massa_wallet_info(update: Update, context: CallbackContext) -> int:
     """Callback for 'Wallet Info': execute wallet_info via massa-client."""
     query = update.callback_query
     user_id = str(query.from_user.id)
     logging.info(f'User {user_id} requested wallet_info.')
-    allowed_user_ids = context.bot_data.get('allowed_user_ids', set())
-
-    if user_id not in allowed_user_ids:
-        await query.answer("Access denied.", show_alert=True)
-        return ConversationHandler.END
 
     try:
         container_name = context.bot_data.get('docker_container_name')
@@ -621,16 +552,12 @@ async def massa_wallet_info(update: Update, context: CallbackContext) -> int:
     return ConversationHandler.END
 
 
+@cb_auth_required
 async def massa_buy_rolls_ask(update: Update, context: CallbackContext) -> int:
     """Callback for 'Buy Rolls': ask the user how many rolls to buy."""
     query = update.callback_query
     user_id = str(query.from_user.id)
     logging.info(f'User {user_id} selected Buy Rolls.')
-    allowed_user_ids = context.bot_data.get('allowed_user_ids', set())
-
-    if user_id not in allowed_user_ids:
-        await query.answer("Access denied.", show_alert=True)
-        return ConversationHandler.END
 
     await query.edit_message_text(
         text="🎲 Buy Rolls\n\n"
@@ -642,16 +569,12 @@ async def massa_buy_rolls_ask(update: Update, context: CallbackContext) -> int:
     return DOCKER_BUYROLLS_INPUT_STATE
 
 
+@cb_auth_required
 async def massa_sell_rolls_ask(update: Update, context: CallbackContext) -> int:
     """Callback for 'Sell Rolls': ask the user how many rolls to sell."""
     query = update.callback_query
     user_id = str(query.from_user.id)
     logging.info(f'User {user_id} selected Sell Rolls.')
-    allowed_user_ids = context.bot_data.get('allowed_user_ids', set())
-
-    if user_id not in allowed_user_ids:
-        await query.answer("Access denied.", show_alert=True)
-        return ConversationHandler.END
 
     await query.edit_message_text(
         text="💸 Sell Rolls\n\n"
@@ -663,8 +586,26 @@ async def massa_sell_rolls_ask(update: Update, context: CallbackContext) -> int:
     return DOCKER_SELLROLLS_INPUT_STATE
 
 
-async def massa_buy_rolls_input(update: Update, context: CallbackContext) -> int:
-    """Handle text input for the number of rolls to buy."""
+async def _rolls_input_handler(
+    update: Update,
+    context: CallbackContext,
+    *,
+    action_label: str,
+    user_data_key: str,
+    confirm_callback: str,
+    input_state: int,
+    confirm_state: int,
+) -> int:
+    """Shared input handler for buy/sell rolls conversation steps.
+
+    Validates the user's roll count, stores it, and presents a confirmation keyboard.
+
+    :param action_label: Human-readable action name (e.g. ``"buy_rolls"``).
+    :param user_data_key: Key to use in ``context.user_data`` for storing the count.
+    :param confirm_callback: ``callback_data`` for the 'Yes' confirmation button.
+    :param input_state: ConversationHandler state to return when input is invalid.
+    :param confirm_state: ConversationHandler state to return on valid input.
+    """
     user_id = str(update.effective_user.id)
     allowed_user_ids = context.bot_data.get('allowed_user_ids', set())
 
@@ -683,24 +624,24 @@ async def massa_buy_rolls_input(update: Update, context: CallbackContext) -> int
         await update.message.reply_text(
             "❌ Invalid number. Please send a positive integer (e.g. 1, 5, 10) or /docker to cancel."
         )
-        return DOCKER_BUYROLLS_INPUT_STATE
+        return input_state
 
     # Store roll count for the confirmation step
-    context.user_data['buy_rolls_count'] = roll_count
+    context.user_data[user_data_key] = roll_count
 
     wallet_address = context.bot_data.get('massa_wallet_address', 'N/A')
     fee = context.bot_data.get('massa_buy_rolls_fee', 0.01)
 
     keyboard = [
         [
-            InlineKeyboardButton("Yes", callback_data='buyrolls_confirm'),
-            InlineKeyboardButton("No", callback_data='docker_cancel')
+            InlineKeyboardButton("Yes", callback_data=confirm_callback),
+            InlineKeyboardButton("No", callback_data='docker_cancel'),
         ]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
 
     await update.message.reply_text(
-        f"⚠️  Confirm buy_rolls:\n\n"
+        f"⚠️  Confirm {action_label}:\n\n"
         f"Address: {wallet_address}\n"
         f"Rolls: {roll_count}\n"
         f"Fee: {fee}\n\n"
@@ -708,176 +649,121 @@ async def massa_buy_rolls_input(update: Update, context: CallbackContext) -> int
         reply_markup=reply_markup
     )
 
-    return DOCKER_BUYROLLS_CONFIRM_STATE
+    return confirm_state
 
 
-async def massa_buy_rolls_confirm(update: Update, context: CallbackContext) -> int:
-    """Callback for buy rolls confirmation: execute the buy_rolls command."""
-    query = update.callback_query
-    user_id = str(query.from_user.id)
-    logging.info(f'User {user_id} confirmed buy_rolls.')
-    allowed_user_ids = context.bot_data.get('allowed_user_ids', set())
-
-    if user_id not in allowed_user_ids:
-        await query.answer("Access denied.", show_alert=True)
-        return ConversationHandler.END
-
-    try:
-        container_name = context.bot_data.get('docker_container_name')
-        password = context.bot_data.get('massa_client_password')
-        wallet_address = context.bot_data.get('massa_wallet_address')
-        fee = context.bot_data.get('massa_buy_rolls_fee', 0.01)
-        roll_count = context.user_data.get('buy_rolls_count', 0)
-
-        if not all([container_name, password, wallet_address]) or roll_count <= 0:
-            await query.edit_message_text(text="❌ Error: Missing configuration or invalid roll count.")
-            await query.answer()
-            return ConversationHandler.END
-
-        command = f"buy_rolls {wallet_address} {roll_count} {fee}"
-
-        await query.edit_message_text(text=f"⏳ Executing buy_rolls ({roll_count} rolls)...")
-        await query.answer()
-
-        result = exec_massa_client(logging, container_name, password, command)
-
-        if result['status'] == 'ok':
-            output = result['output'] or 'Command executed (no output).'
-            await query.edit_message_text(
-                text=f"✅ buy_rolls executed:\n\n{output}"
-            )
-            logging.info(f"User {user_id} bought {roll_count} rolls.")
-        else:
-            await query.edit_message_text(text=result['message'])
-    except Exception as e:
-        logging.error(f"Error executing buy_rolls: {e}")
-        await query.edit_message_text(text="❌ Error executing buy_rolls.")
-
-    # Clean up user_data
-    context.user_data.pop('buy_rolls_count', None)
-    return ConversationHandler.END
+async def massa_buy_rolls_input(update: Update, context: CallbackContext) -> int:
+    """Handle text input for the number of rolls to buy."""
+    return await _rolls_input_handler(
+        update, context,
+        action_label="buy_rolls",
+        user_data_key='buy_rolls_count',
+        confirm_callback='buyrolls_confirm',
+        input_state=DOCKER_BUYROLLS_INPUT_STATE,
+        confirm_state=DOCKER_BUYROLLS_CONFIRM_STATE,
+    )
 
 
 async def massa_sell_rolls_input(update: Update, context: CallbackContext) -> int:
     """Handle text input for the number of rolls to sell."""
-    user_id = str(update.effective_user.id)
-    allowed_user_ids = context.bot_data.get('allowed_user_ids', set())
-
-    if user_id not in allowed_user_ids:
-        await update.message.reply_text("Access denied.")
-        return ConversationHandler.END
-
-    text = update.message.text.strip()
-
-    # Validate input: must be a positive integer
-    try:
-        roll_count = int(text)
-        if roll_count <= 0:
-            raise ValueError
-    except ValueError:
-        await update.message.reply_text(
-            "❌ Invalid number. Please send a positive integer (e.g. 1, 5, 10) or /docker to cancel."
-        )
-        return DOCKER_SELLROLLS_INPUT_STATE
-
-    # Store roll count for the confirmation step
-    context.user_data['sell_rolls_count'] = roll_count
-
-    wallet_address = context.bot_data.get('massa_wallet_address', 'N/A')
-    fee = context.bot_data.get('massa_buy_rolls_fee', 0.01)
-
-    keyboard = [
-        [
-            InlineKeyboardButton("Yes", callback_data='sellrolls_confirm'),
-            InlineKeyboardButton("No", callback_data='docker_cancel')
-        ]
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-
-    await update.message.reply_text(
-        f"⚠️  Confirm sell_rolls:\n\n"
-        f"Address: {wallet_address}\n"
-        f"Rolls: {roll_count}\n"
-        f"Fee: {fee}\n\n"
-        f"Proceed?",
-        reply_markup=reply_markup
+    return await _rolls_input_handler(
+        update, context,
+        action_label="sell_rolls",
+        user_data_key='sell_rolls_count',
+        confirm_callback='sellrolls_confirm',
+        input_state=DOCKER_SELLROLLS_INPUT_STATE,
+        confirm_state=DOCKER_SELLROLLS_CONFIRM_STATE,
     )
 
-    return DOCKER_SELLROLLS_CONFIRM_STATE
 
+async def _rolls_exec_handler(
+    update: Update,
+    context: CallbackContext,
+    *,
+    command_name: str,
+    user_data_key: str,
+    action_verb: str,
+) -> int:
+    """Shared execution handler for buy/sell rolls confirmation steps.
 
-async def massa_sell_rolls_confirm(update: Update, context: CallbackContext) -> int:
-    """Callback for sell rolls confirmation: execute the sell_rolls command."""
+    Retrieves stored roll count, executes the massa-client command, and cleans up.
+
+    :param command_name: Massa-client command prefix (``"buy_rolls"`` or ``"sell_rolls"``).
+    :param user_data_key: Key in ``context.user_data`` holding the roll count.
+    :param action_verb: Past-tense verb for logging (``"bought"`` or ``"sold"``).
+    """
     query = update.callback_query
     user_id = str(query.from_user.id)
-    logging.info(f'User {user_id} confirmed sell_rolls.')
-    allowed_user_ids = context.bot_data.get('allowed_user_ids', set())
-
-    if user_id not in allowed_user_ids:
-        await query.answer("Access denied.", show_alert=True)
-        return ConversationHandler.END
 
     try:
         container_name = context.bot_data.get('docker_container_name')
         password = context.bot_data.get('massa_client_password')
         wallet_address = context.bot_data.get('massa_wallet_address')
         fee = context.bot_data.get('massa_buy_rolls_fee', 0.01)
-        roll_count = context.user_data.get('sell_rolls_count', 0)
+        roll_count = context.user_data.get(user_data_key, 0)
 
         if not all([container_name, password, wallet_address]) or roll_count <= 0:
             await query.edit_message_text(text="❌ Error: Missing configuration or invalid roll count.")
             await query.answer()
             return ConversationHandler.END
 
-        command = f"sell_rolls {wallet_address} {roll_count} {fee}"
+        command = f"{command_name} {wallet_address} {roll_count} {fee}"
 
-        await query.edit_message_text(text=f"⏳ Executing sell_rolls ({roll_count} rolls)...")
+        await query.edit_message_text(text=f"⏳ Executing {command_name} ({roll_count} rolls)...")
         await query.answer()
 
         result = exec_massa_client(logging, container_name, password, command)
 
         if result['status'] == 'ok':
             output = result['output'] or 'Command executed (no output).'
-            await query.edit_message_text(
-                text=f"✅ sell_rolls executed:\n\n{output}"
-            )
-            logging.info(f"User {user_id} sold {roll_count} rolls.")
+            await query.edit_message_text(text=f"✅ {command_name} executed:\n\n{output}")
+            logging.info(f"User {user_id} {action_verb} {roll_count} rolls.")
         else:
             await query.edit_message_text(text=result['message'])
     except Exception as e:
-        logging.error(f"Error executing sell_rolls: {e}")
-        await query.edit_message_text(text="❌ Error executing sell_rolls.")
+        logging.error(f"Error executing {command_name}: {e}")
+        await query.edit_message_text(text=f"❌ Error executing {command_name}.")
 
     # Clean up user_data
-    context.user_data.pop('sell_rolls_count', None)
+    context.user_data.pop(user_data_key, None)
     return ConversationHandler.END
 
 
+@cb_auth_required
+async def massa_buy_rolls_confirm(update: Update, context: CallbackContext) -> int:
+    """Callback for buy rolls confirmation: execute the buy_rolls command."""
+    user_id = str(update.callback_query.from_user.id)
+    logging.info(f'User {user_id} confirmed buy_rolls.')
+    return await _rolls_exec_handler(
+        update, context,
+        command_name='buy_rolls',
+        user_data_key='buy_rolls_count',
+        action_verb='bought',
+    )
+
+
+@cb_auth_required
+async def massa_sell_rolls_confirm(update: Update, context: CallbackContext) -> int:
+    """Callback for sell rolls confirmation: execute the sell_rolls command."""
+    user_id = str(update.callback_query.from_user.id)
+    logging.info(f'User {user_id} confirmed sell_rolls.')
+    return await _rolls_exec_handler(
+        update, context,
+        command_name='sell_rolls',
+        user_data_key='sell_rolls_count',
+        action_verb='sold',
+    )
+
+
+@cb_auth_required
 async def massa_back(update: Update, context: CallbackContext) -> int:
     """Callback to go back to the main docker menu."""
     query = update.callback_query
     user_id = str(query.from_user.id)
-    allowed_user_ids = context.bot_data.get('allowed_user_ids', set())
-
-    if user_id not in allowed_user_ids:
-        await query.answer("Access denied.", show_alert=True)
-        return ConversationHandler.END
-
-    keyboard = [
-        [
-            InlineKeyboardButton("▶️ Start", callback_data='docker_start'),
-            InlineKeyboardButton("⏹️ Stop", callback_data='docker_stop')
-        ],
-        [
-            InlineKeyboardButton("💻 Massa Client", callback_data='docker_massa')
-        ]
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
 
     await query.edit_message_text(
-        text="🐳 Docker Node Management\n"
-             "What do you want to do?",
-        reply_markup=reply_markup
+        text=_DOCKER_MENU_TEXT,
+        reply_markup=_build_docker_main_menu_markup(),
     )
     await query.answer()
 

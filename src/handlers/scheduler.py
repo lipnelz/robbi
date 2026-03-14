@@ -7,7 +7,11 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from services.massa_rpc import get_addresses
 from services.system_monitor import get_system_stats
 from handlers.node import extract_address_data
-from services.history import save_balance_history, filter_last_24h, filter_since_midnight, get_entry_balance, get_entry_temperature, get_entry_ram
+from services.history import (
+    save_balance_history, filter_last_24h, filter_since_midnight,
+    get_entry_balance, get_entry_temperature,
+    make_time_key, build_balance_entry, format_history_entry,
+)
 from config import (
     JOB_SCHED_NAME, NODE_IS_DOWN, NODE_IS_UP,
     TIMEOUT_NAME, TIMEOUT_FIRE_NAME,
@@ -143,19 +147,12 @@ async def periodic_node_ping(application: Application) -> None:
 
         # Record current balance snapshot with timestamp, including system resources
         now = datetime.now()
-        hour, minute, day, month, year = now.hour, now.minute, now.day, now.month, now.year
-        current_time_key = f"{year}/{month:02d}/{day:02d}-{hour:02d}:{minute:02d}"
+        hour = now.hour
+        current_time_key = make_time_key(now)
 
         # Collect CPU temperature and RAM usage
         system_stats = get_system_stats(logging)
-        temperature_avg = system_stats.get("temperature_avg")
-        ram_percent = system_stats.get("ram_percent")
-
-        entry = {"balance": float(data[0])}
-        if temperature_avg is not None:
-            entry["temperature_avg"] = temperature_avg
-        if ram_percent is not None:
-            entry["ram_percent"] = ram_percent
+        entry = build_balance_entry(float(data[0]), system_stats)
 
         lock = application.bot_data.get('balance_lock')
         if lock:
@@ -229,9 +226,7 @@ async def periodic_node_ping(application: Application) -> None:
                     f"📊 Last 24h History:\n"
                     f"{'─' * 40}\n" +
                     ("\n".join(
-                        f"{timestamp}: Balance {get_entry_balance(v):.2f}"
-                        + (f", Temp {get_entry_temperature(v):.1f}°C" if get_entry_temperature(v) is not None else "")
-                        + (f", RAM {get_entry_ram(v):.1f}%" if get_entry_ram(v) is not None else "")
+                        format_history_entry(timestamp, v)
                         for timestamp, v in recent_history.items()
                     ) if recent_history else "No data in the last 24h.")
                 )
