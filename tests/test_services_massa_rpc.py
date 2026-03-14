@@ -18,7 +18,7 @@ class TestGetAddresses:
         call_args = mock_req.call_args
         # positional: logger, method, url
         assert call_args[0][1] == 'post'
-        assert 'massa.net' in call_args[0][2]
+        assert call_args[0][2] == 'https://mainnet.massa.net/api/v2'
         # The data kwarg should be valid JSON containing the address
         data_str = call_args[1]['data']
         data = json.loads(data_str)
