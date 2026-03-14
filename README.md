@@ -20,6 +20,7 @@ Robbi is a Telegram bot that monitors a [Massa](https://massa.net/) blockchain n
 src/
 ├── main.py                         # Entry point: config, bot_data setup, handler registration
 ├── config.py                       # Constants, conversation states, logging config, command list
+├── jrequests.py                    # Backward-compatibility facade (re-exports from services/)
 ├── Dockerfile
 ├── entrypoint.sh
 ├── handlers/
@@ -37,13 +38,21 @@ src/
 │   ├── price_api.py                # External price API wrappers (API-Ninjas, MEXC)
 │   └── system_monitor.py           # System stats via psutil (CPU, RAM, temperatures)
 └── media/                          # Images used in bot responses
+tests/                              # pytest test suite (unit tests for all modules)
+topology_template.json              # Configuration template — copy to topology.json and fill in values
 ```
 
 Shared state (`allowed_user_ids`, `massa_node_address`, `ninja_key`, `balance_history`, `docker_container_name`, etc.) is stored in `application.bot_data` and accessed via `context.bot_data` in handlers — no global variables. A threading lock protects concurrent history updates.
 
 ## Configuration
 
-The `topology.json` file (placed at the repository root) provides all configuration:
+A `topology_template.json` file is provided at the repository root. Copy it to `topology.json` and fill in your values:
+
+```bash
+cp topology_template.json topology.json
+```
+
+The `topology.json` file provides all configuration:
 
 ```json
 {
@@ -124,20 +133,32 @@ The `/docker` command opens a multi-level interactive menu:
 pip install -r requirements.txt
 ```
 
-Key packages: `python-telegram-bot`, `requests`, `matplotlib`, `apscheduler`, `psutil`, `docker`
+Key packages: `python-telegram-bot`, `requests`, `matplotlib`, `apscheduler`, `psutil`, `tzlocal`, `docker`
 
 ## How to Run
 
 ### Local
 
 ```bash
+cp topology_template.json src/topology.json  # or place topology.json in the working directory
 cd src
 python main.py
 ```
 
 ### Docker (recommended)
 
-With `docker-compose`, mount volumes for balance history persistence and Docker access:
+The `Dockerfile` (located in `src/`) clones the repository from GitHub and expects `topology.json` to be present in the `src/` build context:
+
+```bash
+cp topology_template.json src/topology.json
+docker build -t robbi ./src
+docker run -d \
+  -v ./docker-volumes/robbi:/app/config \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  robbi
+```
+
+Or with `docker-compose`, mount volumes for balance history persistence and Docker access:
 
 ```yaml
 volumes:
@@ -150,6 +171,18 @@ docker compose up -d
 ```
 
 Activity is logged to `bot_activity.log`.
+
+## Tests
+
+The project has a full unit test suite under `tests/`. Run with:
+
+```bash
+pytest
+```
+
+Configuration is in `pytest.ini`. A detailed description of all tests is available in [`test_plan.md`](test_plan.md).
+
+CI runs tests automatically on every push via GitHub Actions (`.github/workflows/tests.yml`). Commit messages are also linted via `.github/workflows/commitlint.yml`.
 
 ## Generated Files
 
