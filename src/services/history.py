@@ -8,6 +8,54 @@ from datetime import datetime, timedelta
 BALANCE_HISTORY_FILE = 'config/balance_history.json'
 
 
+def make_time_key(dt: datetime = None) -> str:
+    """Return a ``YYYY/MM/DD-HH:MM`` time key suitable for balance history.
+
+    :param dt: Datetime to format; defaults to now.
+    :return: Formatted time key string.
+    """
+    if dt is None:
+        dt = datetime.now()
+    return f"{dt.year}/{dt.month:02d}/{dt.day:02d}-{dt.hour:02d}:{dt.minute:02d}"
+
+
+def build_balance_entry(balance: float, system_stats: dict) -> dict:
+    """Build a balance history entry dict from a balance and system stats.
+
+    Includes ``temperature_avg`` and ``ram_percent`` when they are present
+    in *system_stats*.
+
+    :param balance: Current node balance.
+    :param system_stats: Dict returned by ``get_system_stats``.
+    :return: Entry dict ready to store in balance history.
+    """
+    entry: dict = {"balance": balance}
+    temperature_avg = system_stats.get("temperature_avg")
+    ram_percent = system_stats.get("ram_percent")
+    if temperature_avg is not None:
+        entry["temperature_avg"] = temperature_avg
+    if ram_percent is not None:
+        entry["ram_percent"] = ram_percent
+    return entry
+
+
+def format_history_entry(time_key: str, value) -> str:
+    """Format a single history entry as a human-readable string.
+
+    :param time_key: Timestamp key (e.g. ``"2025/03/14-07:00"``).
+    :param value: History entry value (str or dict).
+    :return: Formatted string like ``"2025/03/14-07:00: Balance 1234.56, Temp 42.0°C, RAM 63.5%"``.
+    """
+    line = f"{time_key}: Balance {get_entry_balance(value):.2f}"
+    temp = get_entry_temperature(value)
+    ram = get_entry_ram(value)
+    if temp is not None:
+        line += f", Temp {temp:.1f}°C"
+    if ram is not None:
+        line += f", RAM {ram:.1f}%"
+    return line
+
+
 def get_entry_balance(value) -> float:
     """Extract the balance from a history entry.
 
