@@ -1,15 +1,15 @@
-# SKILL.md — Compétences du bot Robbi
+# SKILL.md — Robbi Bot Skills
 
-Ce fichier répertorie les compétences (skills) du bot Robbi. Chaque skill est documenté en détail dans un fichier dédié dans le répertoire [`.github/skills/`](.github/skills/).
+This file lists the skills of the Robbi bot. Each skill is documented in detail in a dedicated file under the [`.github/skills/`](.github/skills/) directory.
 
-## Liste des skills
+## Skills List
 
-| Skill | Commandes | Description |
-|-------|-----------|-------------|
-| [Surveillance du nœud Massa](.github/skills/node-monitoring.md) | `/node` | Statut temps réel du nœud, solde, rolls, graphique de validation |
-| [Historique du solde](.github/skills/balance-history.md) | `/hist`, `/flush` | Persistance JSON, graphiques, effacement des logs |
-| [Rapports planifiés](.github/skills/scheduled-reports.md) | *(automatique)* | Ping toutes les 60 min, rapports à 7h/12h/21h |
-| [Prix des cryptomonnaies](.github/skills/crypto-prices.md) | `/btc`, `/mas` | Prix Bitcoin (API-Ninjas) et Massa/USDT (MEXC) |
-| [Surveillance du système](.github/skills/system-monitoring.md) | `/hi`, `/temperature`, `/perf` | Métriques CPU/RAM/température, latence RPC, uptime |
-| [Gestion Docker](.github/skills/docker-management.md) | `/docker` | Menu interactif : start/stop nœud, wallet_info, buy/sell rolls |
-| [Authentification](.github/skills/authentication.md) | *(transversal)* | Décorateurs `@auth_required`, liste blanche `topology.json` |
+| Skill | Commands | Description |
+|-------|----------|-------------|
+| [Massa Node Monitoring](.github/skills/node-monitoring) | `/node` | Real-time node status, balance, rolls, validation chart |
+| [Balance History](.github/skills/balance-history) | `/hist`, `/flush` | JSON persistence, charts, log clearing |
+| [Scheduled Reports](.github/skills/scheduled-reports) | *(automatic)* | Ping every 60 min, reports at 7am/12pm/9pm |
+| [Cryptocurrency Prices](.github/skills/crypto-prices) | `/btc`, `/mas` | Bitcoin price (API-Ninjas) and Massa/USDT (MEXC) |
+| [System Monitoring](.github/skills/system-monitoring) | `/hi`, `/temperature`, `/perf` | CPU/RAM/temperature metrics, RPC latency, uptime |
+| [Docker Management](.github/skills/docker-management) | `/docker` | Interactive menu: start/stop node, wallet_info, buy/sell rolls |
+| [Authentication](.github/skills/authentication) | *(cross-cutting)* | `@auth_required` decorators, `topology.json` whitelist |
