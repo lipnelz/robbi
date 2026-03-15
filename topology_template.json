@@ -5,14 +5,8 @@
     },
     "massa_node_address" : "YOUR MASSA ADDRESS",
     "ninja_api_key" : "YOUR NINJA KEY HERE",
-    "docker_container_name": "CONTAINER NAME HERE",
+    "node_container_name": "CONTAINER NAME HERE",
     "massa_client_password": "YOUR MASSA CLIENT PASSWORD",
     "massa_wallet_address": "YOUR MASSA WALLET ADDRESS",
-    "massa_buy_rolls_fee": 0.01,
-    "robbi_update_container_name": "robbi",
-    "robbi_update_image_name": "ghcr.io/lipnelz/robbi",
-    "robbi_update_image_tag": "latest",
-    "robbi_update_allowed_images": [
-        "ghcr.io/lipnelz/robbi"
-    ]
+    "massa_buy_rolls_fee": 0.01
 }
