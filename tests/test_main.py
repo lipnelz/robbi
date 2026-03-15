@@ -60,7 +60,7 @@ class TestMainFunction:
             "user_white_list": {"admin": 12345},
             "massa_node_address": "AU1test",
             "ninja_api_key": "ninja123",
-            "docker_container_name": "massa-node",
+            "node_container_name": "massa-node",
             "massa_client_password": "pass",
             "massa_wallet_address": "AU1wallet",
             "massa_buy_rolls_fee": 0.01,

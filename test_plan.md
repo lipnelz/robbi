@@ -423,7 +423,7 @@ Tests use `monkeypatch.chdir(tmp_path)` so plots are written to a temporary dire
 |---|---|
 | `test_start_confirm_happy_path` | `start_docker_node` returns ok → message edited; `END` |
 | `test_start_confirm_error_status` | Returns error status → message edited with error; `END` |
-| `test_start_confirm_no_container_name` | Missing `docker_container_name` key → error message; `END` |
+| `test_start_confirm_no_container_name` | Missing `node_container_name` key → error message; `END` |
 
 Plus analogous tests for `docker_stop_confirm`, `docker_cancel`, `docker_massa`, and all massa-client sub-commands (`massa_wallet_info`, `massa_buy_rolls_ask`, `massa_buy_rolls_input`, `massa_buy_rolls_confirm`, `massa_sell_rolls_ask`, `massa_sell_rolls_input`, `massa_sell_rolls_confirm`, `massa_back`) covering authorization, happy paths, error returns, and cancel flows.
 
