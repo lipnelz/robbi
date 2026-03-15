@@ -17,7 +17,7 @@ from config import (
 from handlers.node import node, flush, flush_confirm_yes, flush_confirm_no, hist, hist_confirm_yes, hist_confirm_no, docker, docker_start, docker_stop, docker_restart, docker_start_confirm, docker_stop_confirm, docker_restart_confirm, docker_cancel, docker_massa, massa_wallet_info, massa_buy_rolls_ask, massa_buy_rolls_input, massa_buy_rolls_confirm, massa_sell_rolls_ask, massa_sell_rolls_input, massa_sell_rolls_confirm, massa_back
 from handlers.price import btc, mas
 from handlers.system import hi, temperature, perf
-from handlers.scheduler import run_async_func
+from handlers.scheduler import run_async_func, stop_async_func
 
 
 # Map command names to handler functions
@@ -191,7 +191,10 @@ def main():
 
     # Start the periodic scheduler (node ping every 60 min) and begin polling
     run_async_func(application)
-    application.run_polling()
+    try:
+        application.run_polling()
+    finally:
+        stop_async_func(application)
 
     logging.info("Bot stopped.")
 
