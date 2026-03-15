@@ -29,7 +29,7 @@ RUN mkdir -p /app/config
 # Note: The topology.json file must be present in the build context
 COPY topology.json /app/
 
-# Copy the startup script
+# Copy startup script
 COPY entrypoint.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh
 
