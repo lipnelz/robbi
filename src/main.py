@@ -13,8 +13,9 @@ from config import (
     DOCKER_MENU_STATE, DOCKER_START_CONFIRM_STATE, DOCKER_STOP_CONFIRM_STATE,
     DOCKER_MASSA_MENU_STATE, DOCKER_BUYROLLS_INPUT_STATE, DOCKER_BUYROLLS_CONFIRM_STATE,
     DOCKER_SELLROLLS_INPUT_STATE, DOCKER_SELLROLLS_CONFIRM_STATE,
+    DOCKER_UPDATE_CONFIRM_STATE,
 )
-from handlers.node import node, flush, flush_confirm_yes, flush_confirm_no, hist, hist_confirm_yes, hist_confirm_no, docker, docker_start, docker_stop, docker_start_confirm, docker_stop_confirm, docker_cancel, docker_massa, massa_wallet_info, massa_buy_rolls_ask, massa_buy_rolls_input, massa_buy_rolls_confirm, massa_sell_rolls_ask, massa_sell_rolls_input, massa_sell_rolls_confirm, massa_back
+from handlers.node import node, flush, flush_confirm_yes, flush_confirm_no, hist, hist_confirm_yes, hist_confirm_no, docker, docker_start, docker_stop, docker_update, docker_start_confirm, docker_stop_confirm, docker_update_confirm, docker_cancel, docker_massa, massa_wallet_info, massa_buy_rolls_ask, massa_buy_rolls_input, massa_buy_rolls_confirm, massa_sell_rolls_ask, massa_sell_rolls_input, massa_sell_rolls_confirm, massa_back
 from handlers.price import btc, mas
 from handlers.system import hi, temperature, perf
 from handlers.scheduler import run_async_func
@@ -70,6 +71,17 @@ def main():
     massa_client_password = config.get('massa_client_password', '')
     massa_wallet_address = config.get('massa_wallet_address', '')
     massa_buy_rolls_fee = config.get('massa_buy_rolls_fee', 0.01)
+    robbi_update_container_name = config.get('robbi_update_container_name', 'robbi')
+    robbi_update_image_name = config.get('robbi_update_image_name', 'robbi')
+    robbi_update_image_tag = config.get('robbi_update_image_tag', 'latest')
+    raw_allowed_images = config.get('robbi_update_allowed_images', [robbi_update_image_name])
+    if isinstance(raw_allowed_images, list):
+        robbi_update_allowed_images = [str(i) for i in raw_allowed_images if str(i).strip()]
+    elif isinstance(raw_allowed_images, str) and raw_allowed_images.strip():
+        robbi_update_allowed_images = [raw_allowed_images.strip()]
+    else:
+        robbi_update_allowed_images = [robbi_update_image_name]
+    robbi_update_image_ref = f"{robbi_update_image_name}:{robbi_update_image_tag}"
 
     # Load persisted balance history from JSON file on disk
     balance_history = load_balance_history()
@@ -105,6 +117,9 @@ def main():
     application.bot_data['massa_client_password'] = massa_client_password
     application.bot_data['massa_wallet_address'] = massa_wallet_address
     application.bot_data['massa_buy_rolls_fee'] = massa_buy_rolls_fee
+    application.bot_data['robbi_update_container_name'] = robbi_update_container_name
+    application.bot_data['robbi_update_image_ref'] = robbi_update_image_ref
+    application.bot_data['robbi_update_allowed_images'] = robbi_update_allowed_images
 
     # Register simple command handlers (one function per command)
     for cmd in COMMANDS_LIST:
@@ -145,7 +160,8 @@ def main():
             DOCKER_MENU_STATE: [
                 CallbackQueryHandler(docker_start, pattern='^docker_start$'),
                 CallbackQueryHandler(docker_stop, pattern='^docker_stop$'),
-                CallbackQueryHandler(docker_massa, pattern='^docker_massa$')
+                CallbackQueryHandler(docker_massa, pattern='^docker_massa$'),
+                CallbackQueryHandler(docker_update, pattern='^docker_update$'),
             ],
             DOCKER_START_CONFIRM_STATE: [
                 CallbackQueryHandler(docker_start_confirm, pattern='^docker_start_confirm$'),
@@ -154,6 +170,10 @@ def main():
             DOCKER_STOP_CONFIRM_STATE: [
                 CallbackQueryHandler(docker_stop_confirm, pattern='^docker_stop_confirm$'),
                 CallbackQueryHandler(docker_cancel, pattern='^docker_cancel$')
+            ],
+            DOCKER_UPDATE_CONFIRM_STATE: [
+                CallbackQueryHandler(docker_update_confirm, pattern='^docker_update_confirm$'),
+                CallbackQueryHandler(docker_cancel, pattern='^docker_cancel$'),
             ],
             DOCKER_MASSA_MENU_STATE: [
                 CallbackQueryHandler(massa_wallet_info, pattern='^massa_wallet_info$'),
