@@ -1,4 +1,6 @@
 import math
+from pathlib import Path
+from uuid import uuid4
 import matplotlib.pyplot as plt
 from typing import List
 
@@ -7,6 +9,12 @@ from services.history import get_entry_balance, get_entry_temperature, get_entry
 
 PNG_FILE_NAME = 'plot.png'
 RESOURCES_PLOT_FILE_NAME = 'resources_history.png'
+BALANCE_HISTORY_PLOT_FILE_NAME = 'balance_history.png'
+
+
+def _unique_plot_name(base_name: str) -> str:
+    """Return a unique file name in the working directory for a plot image."""
+    return f"{uuid4().hex}_{base_name}"
 
 
 def create_png_plot(cycles: List[int], nok_counts: List[int], ok_counts: List[int]) -> str:
@@ -28,10 +36,12 @@ def create_png_plot(cycles: List[int], nok_counts: List[int], ok_counts: List[in
         plt.ylabel('Count')
         plt.legend()
         plt.grid(True)
-        plt.savefig(PNG_FILE_NAME)
+        plot_name = _unique_plot_name(PNG_FILE_NAME)
+        plt.savefig(plot_name)
+        Path(plot_name).touch(exist_ok=True)
     finally:
         plt.close(fig)
-    return PNG_FILE_NAME
+    return plot_name
 
 
 def create_resources_plot(resource_history: dict) -> str:
@@ -105,8 +115,9 @@ def create_resources_plot(resource_history: dict) -> str:
             else:
                 ax1.legend(lines1, labels1, loc='upper left')
 
-        resources_plot_name = RESOURCES_PLOT_FILE_NAME
+        resources_plot_name = _unique_plot_name(RESOURCES_PLOT_FILE_NAME)
         plt.savefig(resources_plot_name)
+        Path(resources_plot_name).touch(exist_ok=True)
     finally:
         plt.close(fig)
 
@@ -141,8 +152,9 @@ def create_balance_history_plot(balance_history: dict) -> str:
         plt.tight_layout()
 
         # Save plot
-        history_plot_name = 'balance_history.png'
+        history_plot_name = _unique_plot_name(BALANCE_HISTORY_PLOT_FILE_NAME)
         plt.savefig(history_plot_name)
+        Path(history_plot_name).touch(exist_ok=True)
     finally:
         plt.close(fig)
     return history_plot_name
