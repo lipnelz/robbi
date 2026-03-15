@@ -1,4 +1,5 @@
 import os
+import asyncio
 import logging
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import CallbackContext, ConversationHandler
@@ -507,17 +508,25 @@ async def docker_restart_confirm(update: Update, context: CallbackContext) -> in
     logging.info(f'User {user_id} confirmed docker bot restart.')
 
     try:
-        result = restart_bot(logging, context)
-
-        await query.edit_message_text(text=result['message'])
+        await query.edit_message_text(text="Ok")
         await query.answer()
+
+        # Give Telegram time to deliver the confirmation message before restart.
+        await asyncio.sleep(1)
+
+        result = restart_bot(logging, context)
 
         if result['status'] == 'ok':
             logging.info(f"User {user_id} successfully restarted the bot container.")
+        else:
+            logging.error(f"User {user_id} failed to restart bot container: {result['message']}")
     except Exception as e:
         logging.error(f"Error executing docker bot restart: {e}")
-        await query.edit_message_text(text="❌ Error executing docker bot restart command.")
-        await query.answer()
+        try:
+            await query.edit_message_text(text="❌ Error executing docker bot restart command.")
+            await query.answer()
+        except Exception:
+            pass
 
     return ConversationHandler.END
 
