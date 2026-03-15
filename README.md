@@ -196,8 +196,7 @@ CI runs tests automatically on every push via GitHub Actions (`.github/workflows
 |------|-------------|-----------|
 | `bot_activity.log` | Activity log | Persistent, clearable via `/flush` |
 | `config/balance_history.json` | Balance snapshots | Persistent (Docker volume) |
-| `plot.png` | Node validation chart | Temporary, deleted after sending |
-| `balance_history.png` | Balance history chart | Temporary, deleted after sending |
+| `*_plot.png` / `*_balance_history.png` / `*_resources_history.png` | Generated charts with unique filenames (validation, balance history, resources) | Temporary, deleted after sending |
 
 ## Notes on Operation
 

@@ -12,6 +12,7 @@ from services.plotting import (
     create_balance_history_plot,
     PNG_FILE_NAME,
     RESOURCES_PLOT_FILE_NAME,
+    BALANCE_HISTORY_PLOT_FILE_NAME,
 )
 
 
@@ -44,8 +45,8 @@ class TestCreatePngPlot:
         nok = [0, 1, 0]
         ok = [5, 4, 6]
         result = create_png_plot(cycles, nok, ok)
-        assert result == PNG_FILE_NAME
-        assert (tmp_path / PNG_FILE_NAME).exists()
+        assert result.endswith(PNG_FILE_NAME)
+        assert (tmp_path / result).exists()
 
     def test_closes_figure_on_success(self, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
@@ -84,8 +85,8 @@ class TestCreateResourcesPlot:
             "2024/01/01-11:00": {"balance": 1.5, "temperature_avg": 57.0},
         }
         result = create_resources_plot(history)
-        assert result == RESOURCES_PLOT_FILE_NAME
-        assert (tmp_path / RESOURCES_PLOT_FILE_NAME).exists()
+        assert result.endswith(RESOURCES_PLOT_FILE_NAME)
+        assert (tmp_path / result).exists()
 
     def test_ram_only_returns_filename(self, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
@@ -94,7 +95,8 @@ class TestCreateResourcesPlot:
             "2024/01/01-11:00": {"balance": 1.5, "ram_percent": 65.0},
         }
         result = create_resources_plot(history)
-        assert result == RESOURCES_PLOT_FILE_NAME
+        assert result.endswith(RESOURCES_PLOT_FILE_NAME)
+        assert (tmp_path / result).exists()
 
     def test_both_temperature_and_ram_returns_filename(self, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
@@ -103,8 +105,8 @@ class TestCreateResourcesPlot:
             "2024/01/01-11:00": {"balance": 2.0, "temperature_avg": 52.0, "ram_percent": 72.0},
         }
         result = create_resources_plot(history)
-        assert result == RESOURCES_PLOT_FILE_NAME
-        assert (tmp_path / RESOURCES_PLOT_FILE_NAME).exists()
+        assert result.endswith(RESOURCES_PLOT_FILE_NAME)
+        assert (tmp_path / result).exists()
 
     def test_closes_figure_on_success(self, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
@@ -130,8 +132,8 @@ class TestCreateBalanceHistoryPlot:
             "2024/01/01-11:00": {"balance": 105.0},
         }
         result = create_balance_history_plot(history)
-        assert result == 'balance_history.png'
-        assert (tmp_path / 'balance_history.png').exists()
+        assert result.endswith(BALANCE_HISTORY_PLOT_FILE_NAME)
+        assert (tmp_path / result).exists()
 
     def test_closes_figure_on_success(self, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
@@ -148,4 +150,5 @@ class TestCreateBalanceHistoryPlot:
             "01/01-11:00": "Balance: 210.0",
         }
         result = create_balance_history_plot(history)
-        assert result == 'balance_history.png'
+        assert result.endswith(BALANCE_HISTORY_PLOT_FILE_NAME)
+        assert (tmp_path / result).exists()
