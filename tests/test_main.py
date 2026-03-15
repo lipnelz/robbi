@@ -43,6 +43,44 @@ class TestPostInit:
         for cmd in commands:
             assert isinstance(cmd, BotCommand)
 
+    async def test_sends_startup_hi_to_allowed_users(self):
+        mock_app = MagicMock()
+        mock_app.bot = AsyncMock()
+        mock_app.bot.set_my_commands = AsyncMock()
+        mock_app.bot.send_message = AsyncMock()
+        mock_app.bot.send_photo = AsyncMock()
+        mock_app.bot_data = {'allowed_user_ids': {'123', '456'}}
+
+        with patch('main._get_git_commit_hash', return_value='abc1234'):
+            await main_module.post_init(mock_app)
+
+        assert mock_app.bot.send_message.call_count == 2
+        assert mock_app.bot.send_photo.call_count == 2
+
+    async def test_no_allowed_users_skips_startup_hi(self):
+        mock_app = MagicMock()
+        mock_app.bot = AsyncMock()
+        mock_app.bot.set_my_commands = AsyncMock()
+        mock_app.bot.send_message = AsyncMock()
+        mock_app.bot.send_photo = AsyncMock()
+        mock_app.bot_data = {}
+
+        await main_module.post_init(mock_app)
+
+        mock_app.bot.send_message.assert_not_called()
+        mock_app.bot.send_photo.assert_not_called()
+
+    async def test_startup_hi_send_error_is_handled(self):
+        mock_app = MagicMock()
+        mock_app.bot = AsyncMock()
+        mock_app.bot.set_my_commands = AsyncMock()
+        mock_app.bot.send_message = AsyncMock(side_effect=Exception("network"))
+        mock_app.bot.send_photo = AsyncMock()
+        mock_app.bot_data = {'allowed_user_ids': {'123'}}
+
+        # Must not raise
+        await main_module.post_init(mock_app)
+
 
 class TestErrorHandler:
     async def test_logs_error(self):
