@@ -10,7 +10,7 @@ Robbi is a Telegram bot that monitors a [Massa](https://massa.net/) blockchain n
 - **Crypto price tracking** — Real-time Bitcoin (API-Ninjas) and Massa/USDT (MEXC) prices
 - **System monitoring** — Per-core CPU usage, RAM, and per-sensor temperature details
 - **Node performance** — RPC latency measurement and uptime percentage (last 24h)
-- **Docker management** — Start/stop the Massa node container and execute Massa client commands (wallet_info, buy_rolls, sell_rolls) via interactive menus, using the Docker SDK (socket-based, no CLI needed)
+- **Docker management** — Start/stop the Massa node container, update the Robbi container image remotely, and execute Massa client commands (wallet_info, buy_rolls, sell_rolls) via interactive menus, using the Docker SDK (socket-based, no CLI needed)
 - **User authentication** — All commands restricted to whitelisted user via `auth_required` decorator
 - **Interactive confirmations** — Inline keyboard buttons for operations (`/flush`, `/hist`, `/docker`)
 
@@ -65,7 +65,13 @@ The `topology.json` file provides all configuration:
     "docker_container_name": "massa-container",
     "massa_client_password": "YOUR_MASSA_CLIENT_PASSWORD",
     "massa_wallet_address": "YOUR_MASSA_WALLET_ADDRESS",
-    "massa_buy_rolls_fee": 0.01
+    "massa_buy_rolls_fee": 0.01,
+    "robbi_update_container_name": "robbi",
+    "robbi_update_image_name": "ghcr.io/lipnelz/robbi",
+    "robbi_update_image_tag": "latest",
+    "robbi_update_allowed_images": [
+      "ghcr.io/lipnelz/robbi"
+    ]
 }
 ```
 
@@ -79,6 +85,10 @@ The `topology.json` file provides all configuration:
 | `massa_client_password` | Password for `./massa-client -p` |
 | `massa_wallet_address` | Wallet address used for buy_rolls / sell_rolls commands |
 | `massa_buy_rolls_fee` | Fee for buy/sell rolls transactions (default: `0.01`) |
+| `robbi_update_container_name` | Docker container name to update remotely (typically your bot service container) |
+| `robbi_update_image_name` | Image repository used by the update action (example: `ghcr.io/lipnelz/robbi`) |
+| `robbi_update_image_tag` | Image tag pulled during update (default: `latest`) |
+| `robbi_update_allowed_images` | Explicit image allowlist; update is rejected if target image is not in this list |
 
 ## Commands
 
@@ -104,12 +114,22 @@ The `/docker` command opens a multi-level interactive menu:
 🐳 Docker Node Management
   ├── ▶️ Start       → Confirmation → Start the node container
   ├── ⏹️ Stop        → Confirmation → Stop the node container
+  ├── ⬆️ Update Robbi → Confirmation → Pull image + recreate target container
   └── 💻 Massa Client
         ├── 💰 Wallet Info   → Execute wallet_info
         ├── 🎲 Buy Rolls     → Input roll count → Confirmation → Execute buy_rolls
         ├── 💸 Sell Rolls     → Input roll count → Confirmation → Execute sell_rolls
         └── ⬅️ Back          → Return to main menu
 ```
+
+### Remote Update Safety (Image Allowlist)
+
+The update action only accepts an image reference if it matches `robbi_update_allowed_images`.
+
+- Exact match example: `ghcr.io/lipnelz/robbi:latest`
+- Repository match example: `ghcr.io/lipnelz/robbi` (allows any tag for this repository)
+
+This prevents accidental or malicious updates to unrelated images.
 
 > **Note:** Docker commands use the Python Docker SDK which communicates directly via the Docker socket.
 > The bot container does **not** need the `docker` CLI installed — only the socket mount:
