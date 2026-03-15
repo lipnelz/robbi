@@ -8,8 +8,10 @@ from handlers.node import (
     docker,
     docker_start,
     docker_stop,
+    docker_restart,
     docker_start_confirm,
     docker_stop_confirm,
+    docker_restart_confirm,
     docker_cancel,
     docker_massa,
     massa_wallet_info,
@@ -27,6 +29,7 @@ from config import (
     DOCKER_MENU_STATE,
     DOCKER_START_CONFIRM_STATE,
     DOCKER_STOP_CONFIRM_STATE,
+    DOCKER_RESTART_CONFIRM_STATE,
     DOCKER_MASSA_MENU_STATE,
     DOCKER_BUYROLLS_INPUT_STATE,
     DOCKER_BUYROLLS_CONFIRM_STATE,
@@ -94,7 +97,7 @@ class TestDockerHandler:
 
 
 # ---------------------------------------------------------------------------
-# docker_start / docker_stop
+# docker_start / docker_stop / docker_restart
 # ---------------------------------------------------------------------------
 
 class TestDockerStartStop:
@@ -125,9 +128,22 @@ class TestDockerStartStop:
         result = await docker_stop(update, context)
         assert result == ConversationHandler.END
 
+    async def test_docker_restart_authorized(self):
+        update = _make_query_update("123")
+        context = _make_context()
+        result = await docker_restart(update, context)
+        assert result == DOCKER_RESTART_CONFIRM_STATE
+        update.callback_query.edit_message_text.assert_called_once()
+
+    async def test_docker_restart_unauthorized(self):
+        update = _make_query_update("999")
+        context = _make_context()
+        result = await docker_restart(update, context)
+        assert result == ConversationHandler.END
+
 
 # ---------------------------------------------------------------------------
-# docker_start_confirm / docker_stop_confirm
+# docker_start_confirm / docker_stop_confirm / docker_restart_confirm
 # ---------------------------------------------------------------------------
 
 class TestDockerStartStopConfirm:
@@ -200,6 +216,34 @@ class TestDockerStartStopConfirm:
         update = _make_query_update("999")
         context = _make_context()
         result = await docker_stop_confirm(update, context)
+        assert result == ConversationHandler.END
+
+    async def test_restart_confirm_happy_path(self):
+        update = _make_query_update("123")
+        context = _make_context()
+        with patch('handlers.node.restart_bot', return_value={"status": "ok", "message": "restarted"}):
+            result = await docker_restart_confirm(update, context)
+        assert result == ConversationHandler.END
+        update.callback_query.edit_message_text.assert_called()
+
+    async def test_restart_confirm_error_status(self):
+        update = _make_query_update("123")
+        context = _make_context()
+        with patch('handlers.node.restart_bot', return_value={"status": "error", "message": "failed"}):
+            result = await docker_restart_confirm(update, context)
+        assert result == ConversationHandler.END
+
+    async def test_restart_confirm_exception(self):
+        update = _make_query_update("123")
+        context = _make_context()
+        with patch('handlers.node.restart_bot', side_effect=Exception("crash")):
+            result = await docker_restart_confirm(update, context)
+        assert result == ConversationHandler.END
+
+    async def test_restart_confirm_unauthorized(self):
+        update = _make_query_update("999")
+        context = _make_context()
+        result = await docker_restart_confirm(update, context)
         assert result == ConversationHandler.END
 
 

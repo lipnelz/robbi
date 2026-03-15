@@ -106,6 +106,7 @@ The `/docker` command opens a multi-level interactive menu:
 🐳 Docker Node Management
   ├── ▶️ Start       → Confirmation → Start the node container
   ├── ⏹️ Stop        → Confirmation → Stop the node container
+  ├── 🔁 Restart Bot → Confirmation → Restart the Robbi bot container
   └── 💻 Massa Client
         ├── 💰 Wallet Info   → Execute wallet_info
         ├── 🎲 Buy Rolls     → Input roll count → Confirmation → Execute buy_rolls
