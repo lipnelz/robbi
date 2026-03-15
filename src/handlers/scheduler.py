@@ -18,19 +18,40 @@ from config import (
 )
 
 
+def _get_application_bot_data(application: Application) -> dict:
+    """Return application.bot_data when available, else a safe local dict."""
+    bot_data = getattr(application, 'bot_data', None)
+    if not isinstance(bot_data, dict):
+        bot_data = {}
+        try:
+            application.bot_data = bot_data
+        except Exception:
+            # Some mocked objects may reject attribute assignment.
+            pass
+    return bot_data
+
+
 def run_async_func(application: Application) -> None:
     """Set up the background scheduler for periodic node pinging.
     Creates or reuses an asyncio event loop, then registers a job
     that runs periodic_node_ping every 60 minutes.
     """
     try:
+        bot_data = _get_application_bot_data(application)
+        existing_scheduler = bot_data.get('scheduler')
+        if existing_scheduler and existing_scheduler.running:
+            logging.info("Scheduler already running, skipping setup.")
+            return
+
         # Try to reuse an existing event loop, or create a new one
         try:
             loop = asyncio.get_running_loop()
+            owns_loop = False
             logging.info("Use the same event loop.")
         except RuntimeError:
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
+            owns_loop = True
             logging.info("Create a new event loop.")
 
         scheduler = BackgroundScheduler()
@@ -53,8 +74,36 @@ def run_async_func(application: Application) -> None:
         if not scheduler.running:
             scheduler.start()
             logging.info("Scheduler started.")
+
+        bot_data['scheduler'] = scheduler
+        bot_data['scheduler_loop'] = loop
+        bot_data['scheduler_owns_loop'] = owns_loop
     except Exception as e:
         logging.error(f"Error in run_async_func: {e}")
+
+
+def stop_async_func(application: Application) -> None:
+    """Shutdown the background scheduler and close owned loop resources."""
+    bot_data = _get_application_bot_data(application)
+    scheduler = bot_data.get('scheduler')
+    loop = bot_data.get('scheduler_loop')
+    owns_loop = bot_data.get('scheduler_owns_loop', False)
+
+    if scheduler is not None:
+        try:
+            if scheduler.running:
+                scheduler.shutdown(wait=False)
+                logging.info("Scheduler stopped.")
+        except Exception as e:
+            logging.error(f"Error stopping scheduler: {e}")
+
+    if owns_loop and loop is not None:
+        try:
+            if not loop.is_running() and not loop.is_closed():
+                loop.close()
+                logging.info("Scheduler loop closed.")
+        except Exception as e:
+            logging.error(f"Error closing scheduler loop: {e}")
 
 
 def run_coroutine_in_loop(coroutine, application, loop) -> None:
