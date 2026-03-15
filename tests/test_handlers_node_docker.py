@@ -58,6 +58,7 @@ def _make_context(extra=None):
         'balance_history': {},
         'balance_lock': threading.Lock(),
         'node_container_name': 'massa-node',
+        'robbi_container_name': 'robbi-container',
         'massa_client_password': 'secret',
         'massa_wallet_address': 'AU1wallet',
         'massa_buy_rolls_fee': 0.01,
