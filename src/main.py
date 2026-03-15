@@ -12,9 +12,10 @@ from config import (
     FLUSH_CONFIRM_STATE, HIST_CONFIRM_STATE, COMMANDS_LIST,
     DOCKER_MENU_STATE, DOCKER_START_CONFIRM_STATE, DOCKER_STOP_CONFIRM_STATE, DOCKER_RESTART_CONFIRM_STATE,
     DOCKER_MASSA_MENU_STATE, DOCKER_BUYROLLS_INPUT_STATE, DOCKER_BUYROLLS_CONFIRM_STATE,
-    DOCKER_SELLROLLS_INPUT_STATE, DOCKER_SELLROLLS_CONFIRM_STATE,
+    DOCKER_SELLROLLS_INPUT_STATE, DOCKER_SELLROLLS_CONFIRM_STATE, BUDDY_FILE_NAME,
 )
 from handlers.node import node, flush, flush_confirm_yes, flush_confirm_no, hist, hist_confirm_yes, hist_confirm_no, docker, docker_start, docker_stop, docker_restart, docker_start_confirm, docker_stop_confirm, docker_restart_confirm, docker_cancel, docker_massa, massa_wallet_info, massa_buy_rolls_ask, massa_buy_rolls_input, massa_buy_rolls_confirm, massa_sell_rolls_ask, massa_sell_rolls_input, massa_sell_rolls_confirm, massa_back
+from handlers.system import _get_git_commit_hash
 from handlers.price import btc, mas
 from handlers.system import hi, temperature, perf
 from handlers.scheduler import run_async_func, stop_async_func
@@ -42,6 +43,21 @@ async def post_init(application: Application) -> None:
     """Register bot commands with Telegram after startup."""
     commands = [BotCommand(command=cmd['cmd_txt'], description=cmd['cmd_desc']) for cmd in COMMANDS_LIST]
     await application.bot.set_my_commands(commands)
+
+    bot_data = getattr(application, 'bot_data', {})
+    allowed_user_ids = bot_data.get('allowed_user_ids', set()) if isinstance(bot_data, dict) else set()
+    if not allowed_user_ids:
+        return
+
+    commit_hash = _get_git_commit_hash()
+    hi_text = f'Hey dude! (version: {commit_hash})'
+
+    for user_id in allowed_user_ids:
+        try:
+            await application.bot.send_message(chat_id=user_id, text=hi_text)
+            await application.bot.send_photo(chat_id=user_id, photo=f'media/{BUDDY_FILE_NAME}')
+        except Exception as e:
+            logging.error(f"Error sending startup hi to user {user_id}: {e}")
 
 
 async def error_handler(update, context: ContextTypes.DEFAULT_TYPE) -> None:
