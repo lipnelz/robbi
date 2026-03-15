@@ -10,11 +10,11 @@ from services.massa_rpc import get_addresses
 from services.history import load_balance_history
 from config import (
     FLUSH_CONFIRM_STATE, HIST_CONFIRM_STATE, COMMANDS_LIST,
-    DOCKER_MENU_STATE, DOCKER_START_CONFIRM_STATE, DOCKER_STOP_CONFIRM_STATE,
+    DOCKER_MENU_STATE, DOCKER_START_CONFIRM_STATE, DOCKER_STOP_CONFIRM_STATE, DOCKER_RESTART_CONFIRM_STATE,
     DOCKER_MASSA_MENU_STATE, DOCKER_BUYROLLS_INPUT_STATE, DOCKER_BUYROLLS_CONFIRM_STATE,
     DOCKER_SELLROLLS_INPUT_STATE, DOCKER_SELLROLLS_CONFIRM_STATE,
 )
-from handlers.node import node, flush, flush_confirm_yes, flush_confirm_no, hist, hist_confirm_yes, hist_confirm_no, docker, docker_start, docker_stop, docker_start_confirm, docker_stop_confirm, docker_cancel, docker_massa, massa_wallet_info, massa_buy_rolls_ask, massa_buy_rolls_input, massa_buy_rolls_confirm, massa_sell_rolls_ask, massa_sell_rolls_input, massa_sell_rolls_confirm, massa_back
+from handlers.node import node, flush, flush_confirm_yes, flush_confirm_no, hist, hist_confirm_yes, hist_confirm_no, docker, docker_start, docker_stop, docker_restart, docker_start_confirm, docker_stop_confirm, docker_restart_confirm, docker_cancel, docker_massa, massa_wallet_info, massa_buy_rolls_ask, massa_buy_rolls_input, massa_buy_rolls_confirm, massa_sell_rolls_ask, massa_sell_rolls_input, massa_sell_rolls_confirm, massa_back
 from handlers.price import btc, mas
 from handlers.system import hi, temperature, perf
 from handlers.scheduler import run_async_func
@@ -147,6 +147,7 @@ def main():
             DOCKER_MENU_STATE: [
                 CallbackQueryHandler(docker_start, pattern='^docker_start$'),
                 CallbackQueryHandler(docker_stop, pattern='^docker_stop$'),
+                CallbackQueryHandler(docker_restart, pattern='^docker_restart$'),
                 CallbackQueryHandler(docker_massa, pattern='^docker_massa$')
             ],
             DOCKER_START_CONFIRM_STATE: [
@@ -155,6 +156,10 @@ def main():
             ],
             DOCKER_STOP_CONFIRM_STATE: [
                 CallbackQueryHandler(docker_stop_confirm, pattern='^docker_stop_confirm$'),
+                CallbackQueryHandler(docker_cancel, pattern='^docker_cancel$')
+            ],
+            DOCKER_RESTART_CONFIRM_STATE: [
+                CallbackQueryHandler(docker_restart_confirm, pattern='^docker_restart_confirm$'),
                 CallbackQueryHandler(docker_cancel, pattern='^docker_cancel$')
             ],
             DOCKER_MASSA_MENU_STATE: [
