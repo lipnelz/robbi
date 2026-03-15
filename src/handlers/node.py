@@ -3,7 +3,7 @@ import logging
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import CallbackContext, ConversationHandler
 from services.massa_rpc import get_addresses
-from services.docker_manager import start_docker_node, stop_docker_node, exec_massa_client
+from services.docker_manager import start_docker_node, stop_docker_node, restart_bot, exec_massa_client
 from handlers.common import auth_required, cb_auth_required, handle_api_error, safe_delete_file
 from services.history import (
     save_balance_history,
@@ -13,7 +13,7 @@ from services.plotting import create_png_plot, create_balance_history_plot, crea
 from services.system_monitor import get_system_stats
 from config import (
     LOG_FILE_NAME, FLUSH_CONFIRM_STATE, HIST_CONFIRM_STATE,
-    DOCKER_MENU_STATE, DOCKER_START_CONFIRM_STATE, DOCKER_STOP_CONFIRM_STATE,
+    DOCKER_MENU_STATE, DOCKER_START_CONFIRM_STATE, DOCKER_STOP_CONFIRM_STATE, DOCKER_RESTART_CONFIRM_STATE,
     DOCKER_MASSA_MENU_STATE, DOCKER_BUYROLLS_INPUT_STATE, DOCKER_BUYROLLS_CONFIRM_STATE,
     DOCKER_SELLROLLS_INPUT_STATE, DOCKER_SELLROLLS_CONFIRM_STATE,
     PAT_FILE_NAME,
@@ -29,6 +29,9 @@ def _build_docker_main_menu_markup() -> InlineKeyboardMarkup:
         [
             InlineKeyboardButton("▶️ Start", callback_data='docker_start'),
             InlineKeyboardButton("⏹️ Stop", callback_data='docker_stop'),
+        ],
+        [
+            InlineKeyboardButton("🔁 Restart Bot", callback_data='docker_restart'),
         ],
         [
             InlineKeyboardButton("💻 Massa Client", callback_data='docker_massa'),
@@ -407,6 +410,30 @@ async def docker_stop(update: Update, context: CallbackContext) -> int:
 
 
 @cb_auth_required
+async def docker_restart(update: Update, context: CallbackContext) -> int:
+    """Callback for docker 'Restart Bot': ask for confirmation."""
+    query = update.callback_query
+    user_id = str(query.from_user.id)
+    logging.info(f'User {user_id} selected Restart Bot in docker menu.')
+
+    keyboard = [
+        [
+            InlineKeyboardButton("Yes", callback_data='docker_restart_confirm'),
+            InlineKeyboardButton("No", callback_data='docker_cancel')
+        ]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+
+    await query.edit_message_text(
+        text="⚠️  Are you sure you want to restart the Robbi bot container?",
+        reply_markup=reply_markup
+    )
+    await query.answer()
+
+    return DOCKER_RESTART_CONFIRM_STATE
+
+
+@cb_auth_required
 async def docker_start_confirm(update: Update, context: CallbackContext) -> int:
     """Callback for docker start confirmation: execute docker start command."""
     query = update.callback_query
@@ -467,6 +494,29 @@ async def docker_stop_confirm(update: Update, context: CallbackContext) -> int:
     except Exception as e:
         logging.error(f"Error executing docker stop: {e}")
         await query.edit_message_text(text="❌ Error executing docker stop command.")
+        await query.answer()
+
+    return ConversationHandler.END
+
+
+@cb_auth_required
+async def docker_restart_confirm(update: Update, context: CallbackContext) -> int:
+    """Callback for docker restart confirmation: restart bot container."""
+    query = update.callback_query
+    user_id = str(query.from_user.id)
+    logging.info(f'User {user_id} confirmed docker bot restart.')
+
+    try:
+        result = restart_bot(logging, context)
+
+        await query.edit_message_text(text=result['message'])
+        await query.answer()
+
+        if result['status'] == 'ok':
+            logging.info(f"User {user_id} successfully restarted the bot container.")
+    except Exception as e:
+        logging.error(f"Error executing docker bot restart: {e}")
+        await query.edit_message_text(text="❌ Error executing docker bot restart command.")
         await query.answer()
 
     return ConversationHandler.END
