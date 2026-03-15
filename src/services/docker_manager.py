@@ -1,5 +1,17 @@
 import logging
 
+
+def _close_docker_client(client, logger) -> None:
+    """Close a Docker client safely when the SDK supports it."""
+    if client is None:
+        return
+    close_fn = getattr(client, 'close', None)
+    if callable(close_fn):
+        try:
+            close_fn()
+        except Exception as e:
+            logger.warning(f"Error closing Docker client: {e}")
+
 def restart_bot(logger, context) -> dict:
     """
     Restart the bot's Docker container.
@@ -11,6 +23,7 @@ def restart_bot(logger, context) -> dict:
     if logger is None:
         logger = logging.getLogger()
 
+    client = None
     try:
         container_name = context.bot_data.get('robbi_container_name') if context else None
         if not container_name:
@@ -27,6 +40,8 @@ def restart_bot(logger, context) -> dict:
     except Exception as e:
         logger.error(f"Error executing docker restart: {e}")
         return {"status": "error", "message": f"❌ Error: {str(e)}"}
+    finally:
+        _close_docker_client(client, logger)
 
 def _get_docker_client():
     """Create a Docker client connected via the mounted socket."""
@@ -44,6 +59,7 @@ def start_docker_node(logger, container_name: str) -> dict:
     if logger is None:
         logger = logging.getLogger()
 
+    client = None
     try:
         client = _get_docker_client()
         container = client.containers.get(container_name)
@@ -53,6 +69,8 @@ def start_docker_node(logger, container_name: str) -> dict:
     except Exception as e:
         logger.error(f"Error starting Docker container: {e}")
         return {"status": "error", "message": f"❌ Error: {str(e)}"}
+    finally:
+        _close_docker_client(client, logger)
 
 
 def stop_docker_node(logger, container_name: str) -> dict:
@@ -66,6 +84,7 @@ def stop_docker_node(logger, container_name: str) -> dict:
     if logger is None:
         logger = logging.getLogger()
 
+    client = None
     try:
         client = _get_docker_client()
         container = client.containers.get(container_name)
@@ -75,6 +94,8 @@ def stop_docker_node(logger, container_name: str) -> dict:
     except Exception as e:
         logger.error(f"Error stopping Docker container: {e}")
         return {"status": "error", "message": f"❌ Error: {str(e)}"}
+    finally:
+        _close_docker_client(client, logger)
 
 
 def exec_massa_client(logger, container_name: str, password: str, command: str) -> dict:
@@ -90,6 +111,7 @@ def exec_massa_client(logger, container_name: str, password: str, command: str) 
     if logger is None:
         logger = logging.getLogger()
 
+    client = None
     try:
         client = _get_docker_client()
         container = client.containers.get(container_name)
@@ -110,3 +132,5 @@ def exec_massa_client(logger, container_name: str, password: str, command: str) 
     except Exception as e:
         logger.error(f"Error executing massa-client: {e}")
         return {"status": "error", "message": f"❌ Error: {str(e)}"}
+    finally:
+        _close_docker_client(client, logger)
