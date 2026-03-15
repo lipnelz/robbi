@@ -61,6 +61,7 @@ class TestMainFunction:
             "massa_node_address": "AU1test",
             "ninja_api_key": "ninja123",
             "node_container_name": "massa-node",
+            "robbi_container_name": "robbi-container",
             "massa_client_password": "pass",
             "massa_wallet_address": "AU1wallet",
             "massa_buy_rolls_fee": 0.01,

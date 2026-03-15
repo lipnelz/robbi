@@ -67,6 +67,7 @@ def main():
     massa_node_address = config.get('massa_node_address')
     ninja_key = config.get('ninja_api_key')
     node_container_name = config.get('node_container_name', 'massa-container')
+    robbi_container_name = config.get('robbi_container_name', 'robbi-container')
     massa_client_password = config.get('massa_client_password', '')
     massa_wallet_address = config.get('massa_wallet_address', '')
     massa_buy_rolls_fee = config.get('massa_buy_rolls_fee', 0.01)
@@ -102,6 +103,7 @@ def main():
     application.bot_data['balance_history'] = balance_history
     application.bot_data['balance_lock'] = threading.Lock()
     application.bot_data['node_container_name'] = node_container_name
+    application.bot_data['robbi_container_name'] = robbi_container_name
     application.bot_data['massa_client_password'] = massa_client_password
     application.bot_data['massa_wallet_address'] = massa_wallet_address
     application.bot_data['massa_buy_rolls_fee'] = massa_buy_rolls_fee

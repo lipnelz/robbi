@@ -5,6 +5,7 @@ from unittest.mock import MagicMock, patch
 
 from services.docker_manager import (
     _get_docker_client,
+    restart_bot,
     start_docker_node,
     stop_docker_node,
     exec_massa_client,
@@ -52,6 +53,47 @@ class TestStartDockerNode:
         with patch('services.docker_manager._get_docker_client', return_value=client):
             result = start_docker_node(None, 'massa-node')
         assert result["status"] == "ok"
+
+
+class TestRestartBot:
+    def test_happy_path_returns_ok_status(self):
+        logger = MagicMock(spec=logging.Logger)
+        context = MagicMock()
+        context.bot_data = {'robbi_container_name': 'robbi-container'}
+        client = MagicMock()
+        container = MagicMock()
+        client.containers.get.return_value = container
+
+        with patch('services.docker_manager._get_docker_client', return_value=client):
+            result = restart_bot(logger, context)
+
+        assert result["status"] == "ok"
+        assert "robbi-container" in result["message"]
+        container.restart.assert_called_once()
+        logger.info.assert_called()
+
+    def test_missing_container_name_returns_error_status(self):
+        logger = MagicMock(spec=logging.Logger)
+        context = MagicMock()
+        context.bot_data = {'robbi_container_name': ''}
+
+        result = restart_bot(logger, context)
+
+        assert result["status"] == "error"
+        assert "not configured" in result["message"]
+        logger.error.assert_called()
+
+    def test_exception_returns_error_status(self):
+        logger = MagicMock(spec=logging.Logger)
+        context = MagicMock()
+        context.bot_data = {'robbi_container_name': 'robbi-container'}
+
+        with patch('services.docker_manager._get_docker_client', side_effect=RuntimeError("no docker")):
+            result = restart_bot(logger, context)
+
+        assert result["status"] == "error"
+        assert "no docker" in result["message"]
+        logger.error.assert_called()
 
 
 class TestStopDockerNode:

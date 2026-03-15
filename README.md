@@ -10,7 +10,7 @@ Robbi is a Telegram bot that monitors a [Massa](https://massa.net/) blockchain n
 - **Crypto price tracking** — Real-time Bitcoin (API-Ninjas) and Massa/USDT (MEXC) prices
 - **System monitoring** — Per-core CPU usage, RAM, and per-sensor temperature details
 - **Node performance** — RPC latency measurement and uptime percentage (last 24h)
-- **Docker management** — Start/stop the Massa node container and execute Massa client commands (wallet_info, buy_rolls, sell_rolls) via interactive menus, using the Docker SDK (socket-based, no CLI needed)
+- **Docker management** — Start/stop the Massa node container, execute Massa client commands (wallet_info, buy_rolls, sell_rolls), and support bot-container restart helpers via the Docker SDK (socket-based, no CLI needed)
 - **User authentication** — All commands restricted to whitelisted user via `auth_required` decorator
 - **Interactive confirmations** — Inline keyboard buttons for operations (`/flush`, `/hist`, `/docker`)
 
@@ -30,7 +30,7 @@ src/
 │   ├── system.py                   # /hi, /temperature, /perf commands
 │   └── scheduler.py                # Periodic node ping (APScheduler, every 60 min)
 ├── services/
-│   ├── docker_manager.py           # Docker SDK wrapper (start/stop container, exec massa-client)
+│   ├── docker_manager.py           # Docker SDK wrapper (start/stop/restart, exec massa-client)
 │   ├── history.py                  # Balance history load/save/filter (JSON persistence)
 │   ├── http_client.py              # Safe HTTP request wrapper with retry logic
 │   ├── massa_rpc.py                # Massa blockchain JSON-RPC calls
@@ -42,7 +42,7 @@ tests/                              # pytest test suite (unit tests for all modu
 topology_template.json              # Configuration template — copy to topology.json and fill in values
 ```
 
-Shared state (`allowed_user_ids`, `massa_node_address`, `ninja_key`, `balance_history`, `node_container_name`, etc.) is stored in `application.bot_data` and accessed via `context.bot_data` in handlers — no global variables. A threading lock protects concurrent history updates.
+Shared state (`allowed_user_ids`, `massa_node_address`, `ninja_key`, `balance_history`, `node_container_name`, `robbi_container_name`, etc.) is stored in `application.bot_data` and accessed via `context.bot_data` in handlers — no global variables. A threading lock protects concurrent history updates.
 
 ## Configuration
 
@@ -63,6 +63,7 @@ The `topology.json` file provides all configuration:
     "massa_node_address": "YOUR_MASSA_ADDRESS",
     "ninja_api_key": "YOUR_NINJA_API_KEY",
     "node_container_name": "massa-container",
+    "robbi_container_name": "robbi-container",
     "massa_client_password": "YOUR_MASSA_CLIENT_PASSWORD",
     "massa_wallet_address": "YOUR_MASSA_WALLET_ADDRESS",
     "massa_buy_rolls_fee": 0.01
@@ -76,6 +77,7 @@ The `topology.json` file provides all configuration:
 | `massa_node_address` | Massa wallet address for node monitoring |
 | `ninja_api_key` | API-Ninjas key for Bitcoin price |
 | `node_container_name` | Name of the Docker container running the Massa node (default: `massa-container`) |
+| `robbi_container_name` | Name of the Docker container running Robbi itself (default: `robbi-container`) |
 | `massa_client_password` | Password for `./massa-client -p` |
 | `massa_wallet_address` | Wallet address used for buy_rolls / sell_rolls commands |
 | `massa_buy_rolls_fee` | Fee for buy/sell rolls transactions (default: `0.01`) |
@@ -148,6 +150,9 @@ python main.py
 ### Docker (recommended)
 
 The `Dockerfile` (located in `src/`) clones the repository from GitHub and expects `topology.json` to be present in the `src/` build context:
+
+At container startup, `entrypoint.sh` attempts `git pull origin main` before launching `python src/main.py`.
+If the pull fails (network/auth), the bot still starts with the local code already present in the image.
 
 ```bash
 cp topology_template.json src/topology.json

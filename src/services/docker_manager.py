@@ -1,11 +1,37 @@
 import logging
 
+def restart_bot(logger, context) -> dict:
+    """
+    Restart the bot's Docker container.
+
+    :param logger: The logger instance
+    :param context: Telegram callback context containing bot_data
+    :return: dict with status and message
+    """
+    if logger is None:
+        logger = logging.getLogger()
+
+    try:
+        container_name = context.bot_data.get('robbi_container_name') if context else None
+        if not container_name:
+            message = "❌ Error: Robbi container name not configured."
+            logger.error(message)
+            return {"status": "error", "message": message}
+
+        client = _get_docker_client()
+        container = client.containers.get(container_name)
+        container.restart()
+
+        logger.info(f"Docker container '{container_name}' restarted successfully.")
+        return {"status": "ok", "message": f"✅ Container '{container_name}' restarted."}
+    except Exception as e:
+        logger.error(f"Error executing docker restart: {e}")
+        return {"status": "error", "message": f"❌ Error: {str(e)}"}
 
 def _get_docker_client():
     """Create a Docker client connected via the mounted socket."""
     import docker
     return docker.from_env()
-
 
 def start_docker_node(logger, container_name: str) -> dict:
     """
