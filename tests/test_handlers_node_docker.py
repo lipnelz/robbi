@@ -8,10 +8,8 @@ from handlers.node import (
     docker,
     docker_start,
     docker_stop,
-    docker_update,
     docker_start_confirm,
     docker_stop_confirm,
-    docker_update_confirm,
     docker_cancel,
     docker_massa,
     massa_wallet_info,
@@ -29,7 +27,6 @@ from config import (
     DOCKER_MENU_STATE,
     DOCKER_START_CONFIRM_STATE,
     DOCKER_STOP_CONFIRM_STATE,
-    DOCKER_UPDATE_CONFIRM_STATE,
     DOCKER_MASSA_MENU_STATE,
     DOCKER_BUYROLLS_INPUT_STATE,
     DOCKER_BUYROLLS_CONFIRM_STATE,
@@ -60,13 +57,10 @@ def _make_context(extra=None):
         'allowed_user_ids': {'123'},
         'balance_history': {},
         'balance_lock': threading.Lock(),
-        'docker_container_name': 'massa-node',
+        'node_container_name': 'massa-node',
         'massa_client_password': 'secret',
         'massa_wallet_address': 'AU1wallet',
         'massa_buy_rolls_fee': 0.01,
-        'robbi_update_container_name': 'robbi',
-        'robbi_update_image_ref': 'ghcr.io/lipnelz/robbi:latest',
-        'robbi_update_allowed_images': ['ghcr.io/lipnelz/robbi'],
     }
     ctx.user_data = {}
     if extra:
@@ -130,25 +124,6 @@ class TestDockerStartStop:
         result = await docker_stop(update, context)
         assert result == ConversationHandler.END
 
-    async def test_docker_update_authorized(self):
-        update = _make_query_update("123")
-        context = _make_context()
-        result = await docker_update(update, context)
-        assert result == DOCKER_UPDATE_CONFIRM_STATE
-        update.callback_query.edit_message_text.assert_called_once()
-
-    async def test_docker_update_unauthorized(self):
-        update = _make_query_update("999")
-        context = _make_context()
-        result = await docker_update(update, context)
-        assert result == ConversationHandler.END
-
-    async def test_docker_update_missing_image(self):
-        update = _make_query_update("123")
-        context = _make_context({'robbi_update_image_ref': ''})
-        result = await docker_update(update, context)
-        assert result == ConversationHandler.END
-
 
 # ---------------------------------------------------------------------------
 # docker_start_confirm / docker_stop_confirm
@@ -173,7 +148,7 @@ class TestDockerStartStopConfirm:
     async def test_start_confirm_no_container_name(self):
         update = _make_query_update("123")
         context = _make_context()
-        context.bot_data['docker_container_name'] = ''
+        context.bot_data['node_container_name'] = ''
         result = await docker_start_confirm(update, context)
         assert result == ConversationHandler.END
         text = update.callback_query.edit_message_text.call_args[1]['text']
@@ -209,7 +184,7 @@ class TestDockerStartStopConfirm:
     async def test_stop_confirm_no_container_name(self):
         update = _make_query_update("123")
         context = _make_context()
-        context.bot_data['docker_container_name'] = ''
+        context.bot_data['node_container_name'] = ''
         result = await docker_stop_confirm(update, context)
         assert result == ConversationHandler.END
 
@@ -224,46 +199,6 @@ class TestDockerStartStopConfirm:
         update = _make_query_update("999")
         context = _make_context()
         result = await docker_stop_confirm(update, context)
-        assert result == ConversationHandler.END
-
-    async def test_update_confirm_happy_path(self):
-        update = _make_query_update("123")
-        context = _make_context()
-        with patch(
-            'handlers.node.update_docker_container_image',
-            return_value={"status": "ok", "message": "updated"},
-        ):
-            result = await docker_update_confirm(update, context)
-        assert result == ConversationHandler.END
-        update.callback_query.edit_message_text.assert_called()
-
-    async def test_update_confirm_error_status(self):
-        update = _make_query_update("123")
-        context = _make_context()
-        with patch(
-            'handlers.node.update_docker_container_image',
-            return_value={"status": "error", "message": "failed"},
-        ):
-            result = await docker_update_confirm(update, context)
-        assert result == ConversationHandler.END
-
-    async def test_update_confirm_missing_config(self):
-        update = _make_query_update("123")
-        context = _make_context({'robbi_update_container_name': ''})
-        result = await docker_update_confirm(update, context)
-        assert result == ConversationHandler.END
-
-    async def test_update_confirm_exception(self):
-        update = _make_query_update("123")
-        context = _make_context()
-        with patch('handlers.node.update_docker_container_image', side_effect=Exception("crash")):
-            result = await docker_update_confirm(update, context)
-        assert result == ConversationHandler.END
-
-    async def test_update_confirm_unauthorized(self):
-        update = _make_query_update("999")
-        context = _make_context()
-        result = await docker_update_confirm(update, context)
         assert result == ConversationHandler.END
 
 
@@ -350,7 +285,7 @@ class TestMassaWalletInfo:
     async def test_missing_config(self):
         update = _make_query_update("123")
         context = _make_context()
-        context.bot_data['docker_container_name'] = ''
+        context.bot_data['node_container_name'] = ''
         result = await massa_wallet_info(update, context)
         assert result == ConversationHandler.END
 
@@ -445,7 +380,7 @@ class TestMassaBuyRolls:
     async def test_confirm_missing_config(self):
         update = _make_query_update("123")
         context = _make_context()
-        context.bot_data['docker_container_name'] = ''
+        context.bot_data['node_container_name'] = ''
         context.user_data['buy_rolls_count'] = 3
         result = await massa_buy_rolls_confirm(update, context)
         assert result == ConversationHandler.END
@@ -550,7 +485,7 @@ class TestMassaSellRolls:
     async def test_confirm_missing_config(self):
         update = _make_query_update("123")
         context = _make_context()
-        context.bot_data['docker_container_name'] = ''
+        context.bot_data['node_container_name'] = ''
         context.user_data['sell_rolls_count'] = 2
         result = await massa_sell_rolls_confirm(update, context)
         assert result == ConversationHandler.END

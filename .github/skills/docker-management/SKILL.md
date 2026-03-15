@@ -138,7 +138,7 @@ exit_code, output = container.exec_run(cmd, workdir='/massa/massa-client')
 
 | `topology.json` Key | Description |
 |---------------------|-------------|
-| `docker_container_name` | Docker container name (e.g. `massa-container`) |
+| `node_container_name` | Docker container name (e.g. `massa-container`) |
 | `massa_client_password` | Password for `./massa-client -p` |
 | `massa_wallet_address` | Wallet address for buy/sell rolls |
 | `massa_buy_rolls_fee` | Transaction fee (e.g. `0.01`) |
