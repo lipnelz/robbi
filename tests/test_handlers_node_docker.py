@@ -221,24 +221,32 @@ class TestDockerStartStopConfirm:
     async def test_restart_confirm_happy_path(self):
         update = _make_query_update("123")
         context = _make_context()
-        with patch('handlers.node.restart_bot', return_value={"status": "ok", "message": "restarted"}):
+        with patch('handlers.node.asyncio.sleep', new_callable=AsyncMock) as mock_sleep, \
+             patch('handlers.node.restart_bot', return_value={"status": "ok", "message": "restarted"}):
             result = await docker_restart_confirm(update, context)
         assert result == ConversationHandler.END
-        update.callback_query.edit_message_text.assert_called()
+        update.callback_query.edit_message_text.assert_called_once_with(text="Ok")
+        mock_sleep.assert_awaited_once_with(1)
 
     async def test_restart_confirm_error_status(self):
         update = _make_query_update("123")
         context = _make_context()
-        with patch('handlers.node.restart_bot', return_value={"status": "error", "message": "failed"}):
+        with patch('handlers.node.asyncio.sleep', new_callable=AsyncMock) as mock_sleep, \
+             patch('handlers.node.restart_bot', return_value={"status": "error", "message": "failed"}):
             result = await docker_restart_confirm(update, context)
         assert result == ConversationHandler.END
+        update.callback_query.edit_message_text.assert_called_once_with(text="Ok")
+        mock_sleep.assert_awaited_once_with(1)
 
     async def test_restart_confirm_exception(self):
         update = _make_query_update("123")
         context = _make_context()
-        with patch('handlers.node.restart_bot', side_effect=Exception("crash")):
+        with patch('handlers.node.asyncio.sleep', new_callable=AsyncMock), \
+             patch('handlers.node.restart_bot', side_effect=Exception("crash")):
             result = await docker_restart_confirm(update, context)
         assert result == ConversationHandler.END
+        # First "Ok", then fallback error message in exception handler.
+        assert update.callback_query.edit_message_text.call_count == 2
 
     async def test_restart_confirm_unauthorized(self):
         update = _make_query_update("999")
