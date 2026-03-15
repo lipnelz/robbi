@@ -24,6 +24,7 @@ def test_conversation_state_integers():
         config.DOCKER_BUYROLLS_CONFIRM_STATE,
         config.DOCKER_SELLROLLS_INPUT_STATE,
         config.DOCKER_SELLROLLS_CONFIRM_STATE,
+        config.DOCKER_UPDATE_CONFIRM_STATE,
     ]
     for s in states:
         assert isinstance(s, int), f"Expected int, got {type(s)} for state {s}"
@@ -42,6 +43,7 @@ def test_conversation_state_values():
     assert config.DOCKER_BUYROLLS_CONFIRM_STATE == 8
     assert config.DOCKER_SELLROLLS_INPUT_STATE == 9
     assert config.DOCKER_SELLROLLS_CONFIRM_STATE == 10
+    assert config.DOCKER_UPDATE_CONFIRM_STATE == 11
 
 
 def test_media_file_names():

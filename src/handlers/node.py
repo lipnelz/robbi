@@ -3,7 +3,12 @@ import logging
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import CallbackContext, ConversationHandler
 from services.massa_rpc import get_addresses
-from services.docker_manager import start_docker_node, stop_docker_node, exec_massa_client
+from services.docker_manager import (
+    start_docker_node,
+    stop_docker_node,
+    exec_massa_client,
+    update_docker_container_image,
+)
 from handlers.common import auth_required, cb_auth_required, handle_api_error, safe_delete_file
 from services.history import (
     save_balance_history,
@@ -16,6 +21,7 @@ from config import (
     DOCKER_MENU_STATE, DOCKER_START_CONFIRM_STATE, DOCKER_STOP_CONFIRM_STATE,
     DOCKER_MASSA_MENU_STATE, DOCKER_BUYROLLS_INPUT_STATE, DOCKER_BUYROLLS_CONFIRM_STATE,
     DOCKER_SELLROLLS_INPUT_STATE, DOCKER_SELLROLLS_CONFIRM_STATE,
+    DOCKER_UPDATE_CONFIRM_STATE,
     PAT_FILE_NAME,
 )
 
@@ -32,6 +38,7 @@ def _build_docker_main_menu_markup() -> InlineKeyboardMarkup:
         ],
         [
             InlineKeyboardButton("💻 Massa Client", callback_data='docker_massa'),
+            InlineKeyboardButton("⬆️ Update Robbi", callback_data='docker_update'),
         ],
     ]
     return InlineKeyboardMarkup(keyboard)
@@ -407,6 +414,39 @@ async def docker_stop(update: Update, context: CallbackContext) -> int:
 
 
 @cb_auth_required
+async def docker_update(update: Update, context: CallbackContext) -> int:
+    """Callback for docker 'Update Robbi': ask for confirmation."""
+    query = update.callback_query
+    user_id = str(query.from_user.id)
+    logging.info(f'User {user_id} selected Update Robbi in docker menu.')
+
+    target_image = context.bot_data.get('robbi_update_image_ref', '')
+    if not target_image:
+        await query.edit_message_text(text="❌ Error: Robbi update image is not configured.")
+        await query.answer()
+        return ConversationHandler.END
+
+    keyboard = [
+        [
+            InlineKeyboardButton("Yes", callback_data='docker_update_confirm'),
+            InlineKeyboardButton("No", callback_data='docker_cancel')
+        ]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+
+    await query.edit_message_text(
+        text=(
+            "⚠️  Are you sure you want to update Robbi container?\n\n"
+            f"Target image: {target_image}"
+        ),
+        reply_markup=reply_markup
+    )
+    await query.answer()
+
+    return DOCKER_UPDATE_CONFIRM_STATE
+
+
+@cb_auth_required
 async def docker_start_confirm(update: Update, context: CallbackContext) -> int:
     """Callback for docker start confirmation: execute docker start command."""
     query = update.callback_query
@@ -467,6 +507,44 @@ async def docker_stop_confirm(update: Update, context: CallbackContext) -> int:
     except Exception as e:
         logging.error(f"Error executing docker stop: {e}")
         await query.edit_message_text(text="❌ Error executing docker stop command.")
+        await query.answer()
+
+    return ConversationHandler.END
+
+
+@cb_auth_required
+async def docker_update_confirm(update: Update, context: CallbackContext) -> int:
+    """Callback for docker update confirmation: pull image and recreate container."""
+    query = update.callback_query
+    user_id = str(query.from_user.id)
+    logging.info(f'User {user_id} confirmed docker update.')
+
+    try:
+        container_name = context.bot_data.get('robbi_update_container_name')
+        image_ref = context.bot_data.get('robbi_update_image_ref')
+        allowed_images = context.bot_data.get('robbi_update_allowed_images', [])
+
+        if not container_name or not image_ref:
+            await query.edit_message_text(text="❌ Error: update container or image is not configured.")
+            await query.answer()
+            return ConversationHandler.END
+
+        await query.edit_message_text(text=f"⏳ Updating '{container_name}' to image '{image_ref}'...")
+        await query.answer()
+
+        result = update_docker_container_image(
+            logging,
+            container_name,
+            image_ref,
+            allowed_images=allowed_images,
+        )
+
+        await query.edit_message_text(text=result['message'])
+        if result.get('status') == 'ok':
+            logging.info("User %s updated Robbi container '%s'.", user_id, container_name)
+    except Exception as e:
+        logging.error(f"Error executing docker update: {e}")
+        await query.edit_message_text(text="❌ Error executing docker update command.")
         await query.answer()
 
     return ConversationHandler.END

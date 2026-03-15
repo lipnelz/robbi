@@ -5,9 +5,11 @@ from unittest.mock import MagicMock, patch
 
 from services.docker_manager import (
     _get_docker_client,
+    _is_image_allowed,
     start_docker_node,
     stop_docker_node,
     exec_massa_client,
+    update_docker_container_image,
 )
 
 
@@ -135,3 +137,93 @@ class TestExecMassaClient:
         assert 'mypass' in cmd
         assert 'wallet_info' in cmd
         assert 'extra' in cmd
+
+
+class TestIsImageAllowed:
+    def test_allow_all_when_list_empty(self):
+        assert _is_image_allowed('ghcr.io/lipnelz/robbi:latest', None)
+        assert _is_image_allowed('ghcr.io/lipnelz/robbi:latest', [])
+
+    def test_exact_match_allowed(self):
+        assert _is_image_allowed('ghcr.io/lipnelz/robbi:latest', ['ghcr.io/lipnelz/robbi:latest'])
+
+    def test_repository_match_allowed(self):
+        assert _is_image_allowed('ghcr.io/lipnelz/robbi:latest', ['ghcr.io/lipnelz/robbi'])
+
+    def test_not_allowed(self):
+        assert not _is_image_allowed('docker.io/library/python:3.12', ['ghcr.io/lipnelz/robbi'])
+
+
+class TestUpdateDockerContainerImage:
+    def _make_client_and_container(self):
+        client = MagicMock()
+
+        old_container = MagicMock()
+        old_container.attrs = {
+            'Config': {
+                'Env': ['A=B'],
+                'Cmd': ['python', 'src/main.py'],
+                'Entrypoint': ['/app/entrypoint.sh'],
+                'WorkingDir': '/app',
+                'Labels': {'com.docker.compose.project': 'robbi'},
+                'User': '',
+            },
+            'HostConfig': {
+                'Binds': ['/var/run/docker.sock:/var/run/docker.sock'],
+                'RestartPolicy': {'Name': 'unless-stopped'},
+                'NetworkMode': 'bridge',
+            },
+            'NetworkSettings': {'Networks': {}},
+        }
+        old_container.image.tags = ['ghcr.io/lipnelz/robbi:old']
+
+        new_container = MagicMock()
+
+        client.containers.get.side_effect = [old_container, Exception('no stale candidate')]
+        client.containers.create.return_value = new_container
+
+        return client, old_container, new_container
+
+    def test_happy_path(self):
+        logger = MagicMock(spec=logging.Logger)
+        client, old_container, new_container = self._make_client_and_container()
+
+        with patch('services.docker_manager._get_docker_client', return_value=client):
+            result = update_docker_container_image(
+                logger,
+                'robbi',
+                'ghcr.io/lipnelz/robbi:latest',
+                allowed_images=['ghcr.io/lipnelz/robbi'],
+            )
+
+        assert result['status'] == 'ok'
+        client.images.pull.assert_called_once_with('ghcr.io/lipnelz/robbi:latest')
+        old_container.stop.assert_called_once_with(timeout=30)
+        old_container.remove.assert_called_once()
+        new_container.rename.assert_called_once_with('robbi')
+
+    def test_refused_by_allowlist(self):
+        logger = MagicMock(spec=logging.Logger)
+        result = update_docker_container_image(
+            logger,
+            'robbi',
+            'docker.io/library/python:3.12',
+            allowed_images=['ghcr.io/lipnelz/robbi'],
+        )
+        assert result['status'] == 'error'
+        assert 'not allowed' in result['message']
+
+    def test_missing_parameters(self):
+        logger = MagicMock(spec=logging.Logger)
+        result = update_docker_container_image(logger, '', '')
+        assert result['status'] == 'error'
+
+    def test_exception_returns_error(self):
+        logger = MagicMock(spec=logging.Logger)
+        with patch('services.docker_manager._get_docker_client', side_effect=RuntimeError('docker down')):
+            result = update_docker_container_image(
+                logger,
+                'robbi',
+                'ghcr.io/lipnelz/robbi:latest',
+            )
+        assert result['status'] == 'error'
