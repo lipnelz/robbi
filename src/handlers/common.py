@@ -16,7 +16,9 @@ def auth_required(func):
         allowed_user_ids = context.bot_data.get('allowed_user_ids', set())
         # Reject unauthorized users before reaching the handler
         if user_id not in allowed_user_ids:
+            logging.warning("Unauthorized access attempt by user %s.", user_id)
             await update.message.reply_text("You are not authorized to use this bot.")
+            await notify_admins_unauthorized(context, user_id)
             return
         # User is authorized, proceed to the actual handler
         return await func(update, context, *args, **kwargs)
@@ -35,10 +37,27 @@ def cb_auth_required(func):
         user_id = str(query.from_user.id)
         allowed_user_ids = context.bot_data.get('allowed_user_ids', set())
         if user_id not in allowed_user_ids:
+            logging.warning("Unauthorized callback attempt by user %s.", user_id)
             await query.answer("Access denied.", show_alert=True)
+            await notify_admins_unauthorized(context, user_id)
             return ConversationHandler.END
         return await func(update, context, *args, **kwargs)
     return wrapper
+
+
+async def notify_admins_unauthorized(context: CallbackContext, user_id: str) -> None:
+    """Send a Telegram alert to all admin users on unauthorized access.
+
+    :param context: The handler's CallbackContext, used to reach context.bot and bot_data.
+    :param user_id: The Telegram user ID of the unauthorized actor.
+    """
+    allowed_user_ids = context.bot_data.get('allowed_user_ids', set())
+    alert_text = f"⚠️ Unauthorized access attempt by user {user_id}."
+    for admin_id in allowed_user_ids:
+        try:
+            await context.bot.send_message(chat_id=admin_id, text=alert_text)
+        except Exception as e:
+            logging.error("Failed to send unauthorized access alert to admin %s: %s", admin_id, e)
 
 
 def safe_delete_file(path: str) -> None:
