@@ -15,7 +15,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 # Ensure src/ is on the path so imports work without installation
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
-from handlers.common import cb_auth_required, safe_delete_file, auth_required, handle_api_error
+from handlers.common import cb_auth_required, safe_delete_file, auth_required, handle_api_error, notify_admins_unauthorized
 from telegram.ext import ConversationHandler
 
 
@@ -27,6 +27,7 @@ def _make_context(allowed_user_ids=None):
     """Build a minimal CallbackContext mock."""
     ctx = MagicMock()
     ctx.bot_data = {"allowed_user_ids": allowed_user_ids or set()}
+    ctx.bot.send_message = AsyncMock()
     return ctx
 
 
@@ -288,3 +289,65 @@ class TestHandleApiError:
         update.message.reply_photo = AsyncMock()
         result = await handle_api_error(update, {})
         assert result is False
+
+
+# ---------------------------------------------------------------------------
+# notify_admins_unauthorized
+# ---------------------------------------------------------------------------
+
+class TestNotifyAdminsUnauthorized:
+    @pytest.mark.asyncio
+    async def test_sends_message_to_each_admin(self):
+        ctx = _make_context({"10", "20"})
+        await notify_admins_unauthorized(ctx, "999")
+        assert ctx.bot.send_message.await_count == 2
+        call_ids = {c.kwargs["chat_id"] for c in ctx.bot.send_message.call_args_list}
+        assert call_ids == {"10", "20"}
+
+    @pytest.mark.asyncio
+    async def test_message_contains_user_id(self):
+        ctx = _make_context({"10"})
+        await notify_admins_unauthorized(ctx, "42")
+        text = ctx.bot.send_message.call_args.kwargs["text"]
+        assert "42" in text
+
+    @pytest.mark.asyncio
+    async def test_no_admin_no_message_sent(self):
+        ctx = _make_context(set())
+        await notify_admins_unauthorized(ctx, "999")
+        ctx.bot.send_message.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_send_failure_is_swallowed(self):
+        ctx = _make_context({"10"})
+        ctx.bot.send_message = AsyncMock(side_effect=Exception("network error"))
+        # Must not raise
+        await notify_admins_unauthorized(ctx, "999")
+
+    @pytest.mark.asyncio
+    async def test_auth_required_notifies_admin_on_unauthorized(self):
+        ctx = _make_context({"10"})
+        update = _make_message_update("999")
+
+        @auth_required
+        async def handler(update, context):
+            pass
+
+        await handler(update, ctx)
+        ctx.bot.send_message.assert_awaited_once()
+        text = ctx.bot.send_message.call_args.kwargs["text"]
+        assert "999" in text
+
+    @pytest.mark.asyncio
+    async def test_cb_auth_required_notifies_admin_on_unauthorized(self):
+        ctx = _make_context({"10"})
+        update = _make_callback_update("999")
+
+        @cb_auth_required
+        async def handler(update, context):
+            pass
+
+        await handler(update, ctx)
+        ctx.bot.send_message.assert_awaited_once()
+        text = ctx.bot.send_message.call_args.kwargs["text"]
+        assert "999" in text
