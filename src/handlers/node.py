@@ -132,10 +132,9 @@ async def flush(update: Update, context: CallbackContext) -> int:
 
     # Manual auth check (ConversationHandler requires returning a state)
     if user_id not in allowed_user_ids:
+        logging.warning("Unauthorized access attempt by user %s on /flush.", user_id)
         await update.message.reply_text("Access denied. You are not authorized.")
         return ConversationHandler.END
-
-    # Abort if log file does not exist
     if not os.path.exists(LOG_FILE_NAME):
         logging.warning(f"Log file {LOG_FILE_NAME} does not exist.")
         await update.message.reply_text(f"Log file {LOG_FILE_NAME} does not exist.")
@@ -224,6 +223,7 @@ async def hist(update: Update, context: CallbackContext) -> int:
 
     # Manual auth check (ConversationHandler requires returning a state)
     if user_id not in allowed_user_ids:
+        logging.warning("Unauthorized access attempt by user %s on /hist.", user_id)
         await update.message.reply_text("Access denied. You are not authorized.")
         return ConversationHandler.END
 
@@ -351,6 +351,7 @@ async def docker(update: Update, context: CallbackContext) -> int:
 
     # Manual auth check (ConversationHandler requires returning a state)
     if user_id not in allowed_user_ids:
+        logging.warning("Unauthorized access attempt by user %s on /docker.", user_id)
         await update.message.reply_text("Access denied. You are not authorized.")
         return ConversationHandler.END
 
@@ -669,6 +670,7 @@ async def _rolls_input_handler(
     allowed_user_ids = context.bot_data.get('allowed_user_ids', set())
 
     if user_id not in allowed_user_ids:
+        logging.warning("Unauthorized message attempt by user %s in rolls input.", user_id)
         await update.message.reply_text("Access denied.")
         return ConversationHandler.END
 

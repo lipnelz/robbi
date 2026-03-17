@@ -16,6 +16,7 @@ def auth_required(func):
         allowed_user_ids = context.bot_data.get('allowed_user_ids', set())
         # Reject unauthorized users before reaching the handler
         if user_id not in allowed_user_ids:
+            logging.warning("Unauthorized access attempt by user %s.", user_id)
             await update.message.reply_text("You are not authorized to use this bot.")
             return
         # User is authorized, proceed to the actual handler
@@ -35,6 +36,7 @@ def cb_auth_required(func):
         user_id = str(query.from_user.id)
         allowed_user_ids = context.bot_data.get('allowed_user_ids', set())
         if user_id not in allowed_user_ids:
+            logging.warning("Unauthorized callback attempt by user %s.", user_id)
             await query.answer("Access denied.", show_alert=True)
             return ConversationHandler.END
         return await func(update, context, *args, **kwargs)
