@@ -89,6 +89,22 @@ class TestCbAuthRequired:
         update.callback_query.answer.assert_awaited_once()
 
     @pytest.mark.asyncio
+    async def test_unauthorized_emits_warning(self, caplog):
+        import logging
+        ctx = _make_context(set())
+        update = _make_callback_update("42")
+
+        @cb_auth_required
+        async def handler(update, context):
+            return "ok"
+
+        with caplog.at_level(logging.WARNING):
+            await handler(update, ctx)
+
+        assert any("42" in record.message and record.levelno == logging.WARNING
+                   for record in caplog.records)
+
+    @pytest.mark.asyncio
     async def test_empty_allowlist_blocks_all(self):
         ctx = _make_context(set())
         update = _make_callback_update("1")
@@ -165,6 +181,22 @@ class TestAuthRequired:
 
         await handler(update, ctx)
         update.message.reply_text.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_unauthorized_emits_warning(self, caplog):
+        import logging
+        ctx = _make_context(set())
+        update = _make_message_update("1")
+
+        @auth_required
+        async def handler(update, context):
+            pass
+
+        with caplog.at_level(logging.WARNING):
+            await handler(update, ctx)
+
+        assert any("1" in record.message and record.levelno == logging.WARNING
+                   for record in caplog.records)
 
     @pytest.mark.asyncio
     async def test_preserves_function_name(self):
