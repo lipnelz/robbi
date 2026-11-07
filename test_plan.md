@@ -4,7 +4,7 @@
 
 This document describes every unit test in the `tests/` suite, organized by file and test class. The suite targets **≥ 90% code coverage** across all modules in `src/` and is fully runnable in CI with no external network calls, no real Docker socket, and no real filesystem writes (outside of `tmp_path`).
 
-**Overall results:** 295 tests passing · 99.83% coverage · 0 CodeQL alerts.
+The CI workflow enforces a minimum of 90% code coverage. Refer to the latest CI run for current test and coverage results.
 
 ---
 
@@ -174,7 +174,8 @@ All tests patch `services.http_client.requests.request` to avoid real network ca
 
 | Test | Scenario |
 |---|---|
-| `test_calls_safe_request_with_correct_post_body` | Asserts method is `'post'`, URL is `https://mainnet.massa.net/api/v2`, JSON-RPC method is `get_addresses`, address appears in `params` |
+| `test_calls_safe_request_with_correct_post_body` | Asserts method is `'post'`, URL is the configured local RPC default, JSON-RPC method is `get_addresses`, address appears in `params` |
+| `test_uses_configured_rpc_url` | Confirms an explicitly configured local endpoint is passed to the HTTP client |
 | `test_returns_error_dict_on_failure` | `safe_request` returns `{"error": "timeout"}` → passed through |
 
 ### `TestMeasureRpcLatency`
@@ -182,6 +183,7 @@ All tests patch `services.http_client.requests.request` to avoid real network ca
 | Test | Scenario |
 |---|---|
 | `test_happy_path_returns_latency_and_ok_status` | `time.time` mocked to return `1000.0` then `1000.5` → `latency_ms ≈ 500.0`, `status="ok"` |
+| `test_passes_configured_rpc_url_to_address_request` | Confirms latency checks use the configured local node endpoint |
 | `test_when_get_addresses_returns_error` | `get_addresses` returns an error dict → `latency_ms` still present, `"error"` key added |
 | `test_when_exception_thrown` | `get_addresses` raises `RuntimeError` → `{"error": "boom"}` returned; `logger.error` called |
 | `test_none_logger_uses_root_logger` | `logger=None` on success path → no crash |
@@ -629,6 +631,7 @@ Verifies the backward-compatibility re-export facade.
 | `test_missing_topology_returns_early` | `open()` raises `FileNotFoundError` → returns without starting the bot |
 | `test_corrupt_topology_returns_early` | File contains invalid JSON → returns without starting |
 | `test_missing_bot_token_returns_early` | `telegram_bot_token` key absent → returns without starting |
+| `test_initial_check_uses_configured_local_rpc_endpoint` | Configured Massa RPC URL is used for the initial local node check |
 
 ---
 
