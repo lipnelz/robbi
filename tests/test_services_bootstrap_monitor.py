@@ -88,9 +88,9 @@ class TestBootstrapMonitor(unittest.TestCase):
         
         self.assertEqual(result["state"], "bootstrapping")
         self.assertEqual(result["attempt_count"], 2)
-        self.assertIn("198.27.74.5", result["current_server"])
+        self.assertEqual(result["current_server"], "158.69.23.120:31245")
         self.assertEqual(result["retry_in_seconds"], 60)
-        self.assertIsNotNone(result["error"])
+        self.assertEqual(result["error"], "Connection refused (os error 111)")
 
     def test_get_bootstrap_status_complete(self):
         """Test bootstrap completion parsing."""
