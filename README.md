@@ -8,8 +8,8 @@ Robbi is a Telegram bot that monitors a [Massa](https://massa.net/) blockchain n
 - **Balance history** — Persisted to JSON file (`config/balance_history.json`), survives Docker restarts. Records balance, CPU temperature, and RAM usage per snapshot
 - **Scheduled reports** — Automatic status reports at 7 AM, 12 PM, and 9 PM with 24h balance change, average temperature, and history data
 - **Crypto price tracking** — Real-time Bitcoin (API-Ninjas) and Massa/USDT (MEXC) prices
-- **System monitoring** — Per-core CPU usage, RAM, and per-sensor temperature details
-- **Node performance** — RPC latency measurement and uptime percentage (last 24h)
+- **System monitoring** — Container-visible CPU/RAM and available per-sensor temperature details (not guaranteed to represent the host)
+- **Node performance** — RPC latency and observed availability across scheduled checks in the last 24h (not continuous uptime); reports include the successful/total check count
 - **Docker management** — Start/stop the Massa node container, execute Massa client commands (wallet_info, buy_rolls, sell_rolls), and support bot-container restart helpers via the Docker SDK (socket-based, no CLI needed)
 - **User authentication** — All commands restricted to whitelisted user via `auth_required` decorator
 - **Interactive confirmations** — Inline keyboard buttons for operations (`/flush`, `/hist`, `/docker`)
@@ -61,6 +61,7 @@ The `topology.json` file provides all configuration:
         "admin": "YOUR_USER_ID"
     },
     "massa_node_address": "YOUR_MASSA_ADDRESS",
+    "massa_node_rpc_url": "http://massa:33034/api/v2",
     "ninja_api_key": "YOUR_NINJA_API_KEY",
     "node_container_name": "massa-container",
     "robbi_container_name": "robbi-container",
@@ -75,6 +76,7 @@ The `topology.json` file provides all configuration:
 | `telegram_bot_token` | Telegram bot token from BotFather |
 | `user_white_list.admin` | Telegram user ID authorized to use the bot |
 | `massa_node_address` | Massa wallet address for node monitoring |
+| `massa_node_rpc_url` | JSON-RPC endpoint of the Massa node (defaults to `http://massa:33034/api/v2` for the Docker Compose service) |
 | `ninja_api_key` | API-Ninjas key for Bitcoin price |
 | `node_container_name` | Name of the Docker container running the Massa node (default: `massa-container`) |
 | `robbi_container_name` | Name of the Docker container running Robbi itself (default: `robbi-container`) |
@@ -86,17 +88,23 @@ The `topology.json` file provides all configuration:
 
 All commands require authentication via `topology.json` whitelist.
 
+Node status, scheduled checks, and `/perf` use `massa_node_rpc_url` to query the Massa node's own JSON-RPC API. In Docker Compose, the default URL uses the `massa` service name on the shared network; for a different deployment, set this key to that node's reachable `/api/v2` URL.
+
 | Command | Description |
 |---------|-------------|
 | `/hi` | Greeting with a custom image and current git commit hash |
 | `/node` | Node status: balance, roll count, OK/NOK counts, active rolls + validation chart |
+| `/status` | Massa container state, healthcheck, JSON-RPC availability, cycle, peers, slots and recent activity |
 | `/btc` | Bitcoin price: USD price, 24h change, high/low, volume |
 | `/mas` | Massa/USDT price from MEXC: price, change, high/low, volume |
 | `/temperature` | System stats: per-sensor temperatures, per-core CPU usage, RAM |
-| `/perf` | Node performance: RPC latency and uptime percentage (last 24h) |
+| `/perf` | Node performance: RPC latency and observed availability across scheduled checks in the last 24h |
 | `/hist` | Balance history chart (balance, temperature, RAM) + optional text summary |
 | `/flush` | Clear logs with confirmation dialog (option to also clear balance history) |
 | `/docker` | Docker management menu (see below) |
+| `/massa_version` | Affiche la version Massa configurée; `/massa_version MAIN.5.2` la modifie dans le Dockerfile |
+
+`/massa_version` modifie le Dockerfile monté dans le conteneur Robbi. Le conteneur Massa déjà lancé ne change pas immédiatement; après la commande, appliquez la nouvelle version sur l'hôte avec `docker-compose up -d --build massa`.
 
 ### `/docker` — Interactive Menu
 
@@ -154,6 +162,7 @@ The `Dockerfile` (located in `src/`) clones the repository from GitHub and expec
 
 At container startup, `entrypoint.sh` attempts `git pull origin main` before launching `python src/main.py`.
 If the pull fails (network/auth), the bot still starts with the local code already present in the image.
+The Massa container runs the node in the foreground and its healthcheck probes the local JSON-RPC `get_status` method. Robbi's healthcheck verifies that its PID 1 is the bot entrypoint process.
 
 ```bash
 cp topology_template.json src/topology.json
@@ -196,11 +205,14 @@ CI runs tests automatically on every push via GitHub Actions (`.github/workflows
 |------|-------------|-----------|
 | `bot_activity.log` | Activity log | Persistent, clearable via `/flush` |
 | `config/balance_history.json` | Balance snapshots | Persistent (Docker volume) |
+| `config/node_status_history.json` | Scheduled node check results, retained for 7 days | Persistent (Docker volume) |
 | `*_plot.png` / `*_balance_history.png` / `*_resources_history.png` | Generated charts with unique filenames (validation, balance history, resources) | Temporary, deleted after sending |
 
 ## Notes on Operation
 
 - **Periodic pings** — Every 60 minutes, the bot checks the Massa node and records the balance
+- **Availability metric** — `/perf` reports the percentage of successful scheduled checks in the last 24 hours; it is sampled availability, not continuous uptime
+- **Container metrics** — CPU, RAM, and temperatures are collected from the bot container's view and may not describe the Docker host; CPU temperature may be unavailable
 - **Scheduled reports** — At 7:00, 12:00, and 21:00 (if node is up), sends a detailed status report including:
   - Balance comparison: first recorded vs current value
   - Change amount and percentage (📈/📉 indicators)
