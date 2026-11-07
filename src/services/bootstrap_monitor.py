@@ -28,26 +28,39 @@ def get_bootstrap_status(container, logger: logging.Logger = None) -> Optional[D
         logger.error(f"Failed to read container logs: {e}")
         return {"state": "unknown", "error": str(e)}
     
+    lines = result.split('\n')
+    
     # Patterns to find
     bootstrap_start = re.search(r'(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})', result)
-    bootstrap_complete = re.search(r'2026.*INFO.*bootstrap::client: Successful bootstrap', result)
+    bootstrap_complete = re.search(r'INFO.*bootstrap::client: Successful bootstrap', result)
     state_bootstrap_complete = re.search(r'INFO.*bootstrap::client: State bootstrap complete', result)
     
     # Find all bootstrap attempts (to count progress)
     attempts = re.findall(r'INFO.*bootstrap::client: Start bootstrapping from ([\w.:[\]]+)', result)
     
-    # Find current error
-    last_error_match = re.search(
-        r'(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}).*'
-        r'(?:WARN|ERROR).*bootstrap.*?: (?:Error|Error while).*?: (.+?)(?:\n|$)',
-        result.split('\n')[-100:]  # Check last 100 lines
-    )
+    # Find last error from recent lines with better pattern
+    last_error = None
+    for line in reversed(lines[-100:]):
+        # Match WARN/ERROR lines with error details
+        if 'WARN' in line and 'bootstrap' in line:
+            # Extract error message after colon
+            if 'Error' in line or 'error' in line:
+                # Try to find error description
+                parts = line.split(': ')
+                if len(parts) >= 3:
+                    last_error = parts[-1].strip()
+                elif len(parts) >= 2:
+                    last_error = parts[-1].strip()
+                break
     
-    # Find retry info
-    retry_match = re.search(
-        r'will try to bootstrap from another server in (\d+)m',
-        result.split('\n')[-50]  # Check last 50 lines
-    )
+    # Find retry time more accurately
+    retry_seconds = None
+    for line in reversed(lines[-50:]):
+        if 'will try to bootstrap from another server in' in line:
+            time_match = re.search(r'in (\d+)m', line)
+            if time_match:
+                retry_seconds = int(time_match.group(1)) * 60
+            break
     
     # Determine state
     if bootstrap_complete or state_bootstrap_complete:
@@ -65,19 +78,11 @@ def get_bootstrap_status(container, logger: logging.Logger = None) -> Optional[D
     if attempts:
         current_server = attempts[-1]
     
-    error = None
-    if last_error_match:
-        error = last_error_match.group(2)
-    
-    retry_seconds = None
-    if retry_match:
-        retry_seconds = int(retry_match.group(1)) * 60
-    
     # Calculate elapsed time if bootstrap_start found
     time_elapsed = None
     if bootstrap_start:
         try:
-            start_time = datetime.fromisoformat(bootstrap_start.group(1) + 'Z'.replace('Z', '+00:00'))
+            start_time = datetime.fromisoformat(bootstrap_start.group(1) + '+00:00')
             now = datetime.now(start_time.tzinfo)
             time_elapsed = int((now - start_time).total_seconds())
         except Exception as e:
@@ -88,7 +93,7 @@ def get_bootstrap_status(container, logger: logging.Logger = None) -> Optional[D
         "progress_pct": progress_pct,
         "current_server": current_server,
         "attempt_count": len(attempts),
-        "error": error,
+        "error": last_error,
         "retry_in_seconds": retry_seconds,
         "time_elapsed": time_elapsed,
     }
