@@ -80,5 +80,8 @@ def test_commands_list_structure():
 
 def test_commands_list_has_expected_commands():
     cmd_texts = {c['cmd_txt'] for c in config.COMMANDS_LIST}
-    expected = {'hi', 'node', 'btc', 'mas', 'hist', 'flush', 'temperature', 'perf', 'docker'}
+    expected = {
+        'hi', 'node', 'btc', 'mas', 'hist', 'flush', 'temperature',
+        'perf', 'docker', 'status', 'massa_version',
+    }
     assert expected.issubset(cmd_texts)

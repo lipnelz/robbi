@@ -4,8 +4,9 @@ import asyncio
 from datetime import datetime
 from telegram.ext import Application
 from apscheduler.schedulers.background import BackgroundScheduler
-from services.massa_rpc import get_addresses
+from services.massa_rpc import DEFAULT_MASSA_RPC_URL, get_addresses
 from services.system_monitor import get_system_stats
+from services.node_status import record_node_status
 from handlers.node import extract_address_data
 from services.history import (
     save_balance_history, filter_last_24h, filter_since_midnight,
@@ -144,11 +145,15 @@ async def periodic_node_ping(application: Application) -> None:
     allowed_user_ids = application.bot_data.get('allowed_user_ids', set())
     balance_history = application.bot_data.get('balance_history', {})
     massa_node_address = application.bot_data.get('massa_node_address', '')
+    massa_node_rpc_url = application.bot_data.get('massa_node_rpc_url', DEFAULT_MASSA_RPC_URL)
+    status_recorded = False
 
     try:
         # Fetch node data via JSON-RPC
-        json_data = get_addresses(logging, massa_node_address)
+        json_data = get_addresses(logging, massa_node_address, massa_node_rpc_url)
         if "error" in json_data:
+            record_node_status(False)
+            status_recorded = True
             error_message = json_data["error"]
             # Pick the appropriate error image
             if "timed out" in error_message:
@@ -176,6 +181,8 @@ async def periodic_node_ping(application: Application) -> None:
         logging.info(data)
 
         if data is None:
+            record_node_status(False)
+            status_recorded = True
             logging.error("Invalid data.")
             for user_id in allowed_user_ids:
                 await application.bot.send_message(chat_id=user_id, text="Ping failed, invalid data.")
@@ -185,6 +192,8 @@ async def periodic_node_ping(application: Application) -> None:
 
         # Node is considered down if any NOK count is non-zero or roll count is 0
         node_is_up = not (any(data[4]) or data[1] == 0)
+        record_node_status(node_is_up)
+        status_recorded = True
 
         if not node_is_up:
             # Alert all users immediately when node is down
@@ -286,4 +295,6 @@ async def periodic_node_ping(application: Application) -> None:
                 await application.bot.send_message(chat_id=user_id, text=tmp_string)
 
     except Exception as e:
+        if not status_recorded:
+            record_node_status(False)
         logging.error(f"Error in periodic_node_ping: {e}")

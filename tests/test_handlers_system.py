@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 
 from handlers.system import (
     _get_git_commit_hash,
-    _calculate_uptime,
+    _calculate_observed_availability,
     _is_recent,
     hi,
     temperature,
@@ -117,49 +117,34 @@ class TestTemperatureHandler:
 
 
 # ---------------------------------------------------------------------------
-# _calculate_uptime
+# _calculate_observed_availability
 # ---------------------------------------------------------------------------
 
-class TestCalculateUptime:
-    def _key(self, dt: datetime) -> str:
-        return f"{dt.year}/{dt.month:02d}/{dt.day:02d}-{dt.hour:02d}:{dt.minute:02d}"
+class TestCalculateObservedAvailability:
+    def test_empty_history_returns_no_data(self):
+        assert _calculate_observed_availability({}) == (None, 0, 0)
 
-    def test_empty_history_returns_zero(self):
-        assert _calculate_uptime({}) == 0.0
+    def test_returns_percentage_of_successful_checks(self):
+        now = datetime(2026, 11, 7, 9, 0)
+        history = {
+            (now - timedelta(hours=1)).isoformat(): True,
+            (now - timedelta(hours=2)).isoformat(): False,
+            (now - timedelta(hours=3)).isoformat(): True,
+        }
+        availability, successful_checks, check_count = _calculate_observed_availability(history, now)
+        assert availability == pytest.approx(66.7)
+        assert successful_checks == 2
+        assert check_count == 3
 
-    def test_full_24_entries_returns_100(self):
-        now = datetime.now()
-        history = {}
-        for i in range(24):
-            dt = now - timedelta(hours=i)
-            history[self._key(dt)] = {"balance": 1.0}
-        result = _calculate_uptime(history)
-        assert result == 100.0
-
-    def test_12_entries_returns_50(self):
-        now = datetime.now()
-        history = {}
-        for i in range(12):
-            dt = now - timedelta(hours=i)
-            history[self._key(dt)] = {"balance": 1.0}
-        result = _calculate_uptime(history)
-        assert result == pytest.approx(50.0, abs=0.1)
-
-    def test_capped_at_100(self):
-        now = datetime.now()
-        history = {}
-        for i in range(30):
-            dt = now - timedelta(hours=i)
-            history[self._key(dt)] = {"balance": 1.0}
-        result = _calculate_uptime(history)
-        assert result <= 100.0
-
-    def test_old_entries_ignored(self):
-        now = datetime.now()
-        old = now - timedelta(hours=48)
-        history = {self._key(old): {"balance": 1.0}}
-        result = _calculate_uptime(history)
-        assert result == 0.0
+    def test_ignores_old_future_and_invalid_entries(self):
+        now = datetime(2026, 11, 7, 9, 0)
+        history = {
+            (now - timedelta(hours=25)).isoformat(): False,
+            (now + timedelta(minutes=1)).isoformat(): False,
+            "not-a-timestamp": False,
+            (now - timedelta(hours=1)).isoformat(): True,
+        }
+        assert _calculate_observed_availability(history, now) == (100.0, 1, 1)
 
 
 # ---------------------------------------------------------------------------
@@ -203,12 +188,14 @@ class TestPerfHandler:
     async def test_happy_path_sends_formatted_string(self, authorized_update_context):
         update, context = authorized_update_context
         context.bot_data['balance_history'] = {}
-        with patch('handlers.system.measure_rpc_latency', return_value={"latency_ms": 123.4, "status": "ok"}):
+        with patch('handlers.system.measure_rpc_latency', return_value={"latency_ms": 123.4, "status": "ok"}), \
+             patch('handlers.system.load_node_status_history', return_value={}):
             await perf(update, context)
         update.message.reply_text.assert_called_once()
         text = update.message.reply_text.call_args[0][0]
         assert "123.4" in text
-        assert "Uptime" in text
+        assert "Observed availability" in text
+        assert "no scheduled checks recorded" in text
 
     async def test_rpc_error_sends_error_message(self, authorized_update_context):
         update, context = authorized_update_context
