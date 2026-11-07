@@ -2,3 +2,11 @@ __pycache__/
 *.pyc
 bot_activity.log
 .coverage
+
+# Docker and deployment (environment-specific)
+Dockerfile
+src/Dockerfile
+
+# Topology (node-specific configuration)
+topology.json
+topology_template.json
