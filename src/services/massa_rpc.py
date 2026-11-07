@@ -4,15 +4,18 @@ import logging
 from services.http_client import safe_request
 
 
-def get_addresses(logger, address: str) -> dict:
+DEFAULT_MASSA_RPC_URL = 'http://massa:33034/api/v2'
+
+
+def get_addresses(logger, address: str, rpc_url: str = DEFAULT_MASSA_RPC_URL) -> dict:
     """
-    Print the address info from a given address
+    Retrieve address information from the configured Massa node JSON-RPC endpoint.
 
     :param logger: The logger instance
-    :param address: The address to querry.
+    :param address: The address to query.
+    :param rpc_url: The Massa node JSON-RPC endpoint.
     :return: json dict with all info
     """
-    url = 'https://mainnet.massa.net/api/v2'
     headers = {'Content-Type': 'application/json'}
     data = {
         "jsonrpc": "2.0",
@@ -20,15 +23,28 @@ def get_addresses(logger, address: str) -> dict:
         "method": "get_addresses",
         "params": [[address]]
     }
-    return safe_request(logger, 'post', url, headers=headers, data=json.dumps(data))
+    return safe_request(logger, 'post', rpc_url, headers=headers, data=json.dumps(data))
 
 
-def measure_rpc_latency(logger, address: str) -> dict:
+def get_node_status(logger, rpc_url: str = DEFAULT_MASSA_RPC_URL) -> dict:
+    """Fetch runtime, peer, and consensus information from the Massa node."""
+    headers = {'Content-Type': 'application/json'}
+    data = {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "get_status",
+        "params": []
+    }
+    return safe_request(logger, 'post', rpc_url, headers=headers, data=json.dumps(data))
+
+
+def measure_rpc_latency(logger, address: str, rpc_url: str = DEFAULT_MASSA_RPC_URL) -> dict:
     """
     Measure RPC latency and check node connectivity.
 
     :param logger: The logger instance
     :param address: The Massa address to query
+    :param rpc_url: The Massa node JSON-RPC endpoint.
     :return: dict with latency_ms and node status
     """
     if logger is None:
@@ -36,7 +52,7 @@ def measure_rpc_latency(logger, address: str) -> dict:
 
     try:
         start = time.time()
-        result = get_addresses(logger, address)
+        result = get_addresses(logger, address, rpc_url)
         latency_ms = (time.time() - start) * 1000
 
         if "error" in result:

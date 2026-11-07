@@ -98,6 +98,34 @@ def stop_docker_node(logger, container_name: str) -> dict:
         _close_docker_client(client, logger)
 
 
+def get_container_status(logger, container_name: str) -> dict:
+    """Return Docker's current state and healthcheck status for a container."""
+    if logger is None:
+        logger = logging.getLogger()
+    client = None
+    try:
+        if not container_name:
+            return {"status": "error", "message": "Container name not configured."}
+        client = _get_docker_client()
+        container = client.containers.get(container_name)
+        container.reload()
+        state = container.attrs.get('State', {})
+        health = state.get('Health', {})
+        return {
+            "status": "ok",
+            "state": state.get('Status', 'unknown'),
+            "health": health.get('Status'),
+            "started_at": state.get('StartedAt'),
+            "exit_code": state.get('ExitCode'),
+            "error": state.get('Error'),
+        }
+    except Exception as e:
+        logger.error("Error getting Docker container status: %s", e)
+        return {"status": "error", "message": str(e)}
+    finally:
+        _close_docker_client(client, logger)
+
+
 def exec_massa_client(logger, container_name: str, password: str, command: str) -> dict:
     """
     Execute a command via massa-client inside a Docker container.

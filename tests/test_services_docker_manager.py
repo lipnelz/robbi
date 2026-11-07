@@ -8,6 +8,7 @@ from services.docker_manager import (
     restart_bot,
     start_docker_node,
     stop_docker_node,
+    get_container_status,
     exec_massa_client,
 )
 
@@ -124,6 +125,52 @@ class TestStopDockerNode:
         with patch('services.docker_manager._get_docker_client', return_value=client):
             result = stop_docker_node(None, 'massa-container')
         assert result["status"] == "ok"
+
+
+class TestGetContainerStatus:
+    def test_returns_state_and_health_from_container(self):
+        logger = MagicMock(spec=logging.Logger)
+        client = MagicMock()
+        container = MagicMock()
+        container.attrs = {
+            'State': {
+                'Status': 'running',
+                'StartedAt': '2026-11-07T09:00:00Z',
+                'Health': {'Status': 'starting'},
+            }
+        }
+        client.containers.get.return_value = container
+
+        with patch('services.docker_manager._get_docker_client', return_value=client):
+            result = get_container_status(logger, 'massa-container')
+
+        assert result == {
+            'status': 'ok',
+            'state': 'running',
+            'health': 'starting',
+            'started_at': '2026-11-07T09:00:00Z',
+            'exit_code': None,
+            'error': None,
+        }
+        container.reload.assert_called_once()
+        client.close.assert_called_once()
+
+    def test_reports_docker_errors(self):
+        logger = MagicMock(spec=logging.Logger)
+        with patch(
+            'services.docker_manager._get_docker_client',
+            side_effect=RuntimeError('Docker unavailable'),
+        ):
+            result = get_container_status(logger, 'massa-container')
+
+        assert result == {'status': 'error', 'message': 'Docker unavailable'}
+        logger.error.assert_called_once()
+
+    def test_rejects_missing_container_name(self):
+        logger = MagicMock(spec=logging.Logger)
+        result = get_container_status(logger, '')
+        assert result['status'] == 'error'
+        assert 'not configured' in result['message']
 
 
 class TestExecMassaClient:

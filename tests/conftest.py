@@ -30,6 +30,18 @@ def mock_context():
     return context
 
 
+@pytest.fixture(autouse=True)
+def isolate_node_status_history(tmp_path, monkeypatch):
+    from services.node_status import NODE_STATUS_HISTORY_FILE
+    import services.node_status as node_status
+
+    monkeypatch.setattr(
+        node_status,
+        'NODE_STATUS_HISTORY_FILE',
+        str(tmp_path / NODE_STATUS_HISTORY_FILE),
+    )
+
+
 @pytest.fixture
 def authorized_update_context(mock_update, mock_context):
     return mock_update, mock_context
