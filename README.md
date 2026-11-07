@@ -61,7 +61,7 @@ The `topology.json` file provides all configuration:
         "admin": "YOUR_USER_ID"
     },
     "massa_node_address": "YOUR_MASSA_ADDRESS",
-    "massa_node_rpc_url": "http://massa:33034/api/v2",
+    "massa_node_rpc_url": "http://massa:33036/api/v2",
     "ninja_api_key": "YOUR_NINJA_API_KEY",
     "node_container_name": "massa-container",
     "robbi_container_name": "robbi-container",
@@ -76,7 +76,7 @@ The `topology.json` file provides all configuration:
 | `telegram_bot_token` | Telegram bot token from BotFather |
 | `user_white_list.admin` | Telegram user ID authorized to use the bot |
 | `massa_node_address` | Massa wallet address for node monitoring |
-| `massa_node_rpc_url` | JSON-RPC endpoint of the Massa node (defaults to `http://massa:33034/api/v2` for the Docker Compose service) |
+| `massa_node_rpc_url` | JSON-RPC endpoint of the Massa node (defaults to `http://massa:33036/api/v2` for the Docker Compose service) |
 | `ninja_api_key` | API-Ninjas key for Bitcoin price |
 | `node_container_name` | Name of the Docker container running the Massa node (default: `massa-container`) |
 | `robbi_container_name` | Name of the Docker container running Robbi itself (default: `robbi-container`) |

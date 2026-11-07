@@ -78,7 +78,7 @@ This skill provides real-time monitoring of the Massa blockchain node via `/node
 | `topology.json` Key | Description |
 |---------------------|-------------|
 | `massa_node_address` | Massa wallet address for monitoring |
-| `massa_node_rpc_url` | Massa node JSON-RPC URL; defaults to `http://massa:33034/api/v2` on the Docker Compose network |
+| `massa_node_rpc_url` | Massa node JSON-RPC URL; defaults to `http://massa:33036/api/v2` on the Docker Compose network |
 
 ## Error Handling
 

@@ -4,7 +4,7 @@ import logging
 from services.http_client import safe_request
 
 
-DEFAULT_MASSA_RPC_URL = 'http://massa:33034/api/v2'
+DEFAULT_MASSA_RPC_URL = 'http://massa:33036/api/v2'
 
 
 def get_addresses(logger, address: str, rpc_url: str = DEFAULT_MASSA_RPC_URL) -> dict:
