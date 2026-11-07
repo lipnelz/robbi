@@ -1,9 +1,11 @@
+import asyncio
 import logging
 import os
 from telegram import Update
 from telegram.ext import CallbackContext
 
 from handlers.common import auth_required
+from services.massa_deployment import rebuild_massa
 from services.massa_version import (
     DEFAULT_MASSA_DOCKERFILE,
     read_massa_version,
@@ -13,6 +15,28 @@ from services.massa_version import (
 
 def _massa_dockerfile_path() -> str:
     return os.environ.get('MASSA_DOCKERFILE_PATH', DEFAULT_MASSA_DOCKERFILE)
+
+
+async def _rebuild_massa_and_report(message, version: str) -> None:
+    try:
+        result = await asyncio.to_thread(rebuild_massa)
+        if result.returncode:
+            details = (result.stderr or result.stdout).strip()
+            logging.error("Massa Compose rebuild failed: %s", details)
+            response = f"❌ Échec du rebuild de Massa (code {result.returncode})."
+            if details:
+                response += f"\n{details[-2500:]}"
+        else:
+            logging.info("Massa %s rebuilt and recreated successfully.", version)
+            response = f"✅ Massa a été reconstruit et redémarré en version {version}."
+    except Exception as error:
+        logging.exception("Unable to rebuild Massa with Docker Compose.")
+        response = f"❌ Impossible de reconstruire Massa : {error}"
+
+    try:
+        await message.reply_text(response)
+    except Exception:
+        logging.exception("Could not report Massa rebuild result to Telegram.")
 
 
 @auth_required
@@ -57,6 +81,8 @@ async def massa_version(update: Update, context: CallbackContext) -> None:
     )
     await update.message.reply_text(
         f"✅ Version Massa modifiée : {previous_version} → {new_version}.\n"
-        "Le conteneur en cours n'est pas modifié. Pour construire et démarrer "
-        "cette version, exécutez `docker-compose up -d --build massa` sur l'hôte."
+        "⏳ Je reconstruis et redémarre le conteneur Massa. Je t'enverrai le résultat."
+    )
+    context.application.create_task(
+        _rebuild_massa_and_report(update.message, new_version)
     )

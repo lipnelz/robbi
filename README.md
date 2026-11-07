@@ -104,7 +104,7 @@ Node status, scheduled checks, and `/perf` use `massa_node_rpc_url` to query the
 | `/docker` | Docker management menu (see below) |
 | `/massa_version` | Affiche la version Massa configurée; `/massa_version MAIN.5.2` la modifie dans le Dockerfile |
 
-`/massa_version` modifie le Dockerfile monté dans le conteneur Robbi. Le conteneur Massa déjà lancé ne change pas immédiatement; après la commande, appliquez la nouvelle version sur l'hôte avec `docker-compose up -d --build massa`.
+`/massa_version` modifie le Dockerfile Massa monté, puis lance en arrière-plan `docker-compose up -d --build --force-recreate massa`. Robbi confirme immédiatement la demande et envoie un second message avec le résultat du rebuild. Le service Compose doit monter le dossier du projet au même chemin absolu dans le conteneur Robbi et fournir `MASSA_COMPOSE_PROJECT_DIR` et `MASSA_COMPOSE_FILE`; le Dockerfile Robbi doit embarquer le binaire Docker Compose v2.
 
 ### `/docker` — Interactive Menu
 
