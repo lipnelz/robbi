@@ -6,6 +6,7 @@ from telegram.ext import CallbackContext
 from handlers.common import auth_required
 from services.docker_manager import get_container_status
 from services.massa_rpc import DEFAULT_MASSA_RPC_URL, get_node_status
+from services.bootstrap_monitor import get_bootstrap_status, format_bootstrap_status
 
 
 def _slot_text(slot) -> str:
@@ -112,10 +113,29 @@ async def node_status(update: Update, context: CallbackContext) -> None:
     rpc_url = context.bot_data.get('massa_node_rpc_url', DEFAULT_MASSA_RPC_URL)
 
     try:
+        from services.docker_manager import _get_docker_client, _close_docker_client
+        
         container_status = await asyncio.to_thread(
             get_container_status, logging, container_name
         )
         lines = ["🔎 État du nœud Massa", *_container_state_lines(container_status)]
+
+        # Check bootstrap status from logs if container is running
+        if container_status.get('status') == 'ok' and container_status.get('state') == 'running':
+            try:
+                def _get_bootstrap():
+                    client = _get_docker_client()
+                    try:
+                        container = client.containers.get(container_name)
+                        return get_bootstrap_status(container, logging)
+                    finally:
+                        _close_docker_client(client, logging)
+                
+                bootstrap_info = await asyncio.to_thread(_get_bootstrap)
+                bootstrap_text = format_bootstrap_status(bootstrap_info)
+                lines.append(bootstrap_text)
+            except Exception as e:
+                logging.debug(f"Could not get bootstrap status: {e}")
 
         if container_status.get('status') == 'ok' and container_status.get('state') != 'running':
             lines.append("RPC : non interrogé, car le conteneur n'est pas démarré.")
