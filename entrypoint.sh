@@ -4,7 +4,7 @@ set -e
 cd /app
 
 echo "[INFO] Starting Robbi bot..."
-echo "[INFO] Attempting to pull latest code from origin/main..."
+echo "[INFO] Attempting to synchronize with origin/main..."
 
 # Configure git credentials if GIT_TOKEN is set (for CI/CD or secure token storage)
 if [ -n "${GIT_TOKEN:-}" ]; then
@@ -12,19 +12,29 @@ if [ -n "${GIT_TOKEN:-}" ]; then
     git remote set-url origin "https://${GIT_TOKEN}@github.com/lipnelz/robbi.git"
 fi
 
-# Try to pull latest changes
-if git pull origin main --rebase; then
-    echo "[INFO] Successfully pulled latest code from origin/main"
+# Fetch latest changes from remote
+if git fetch origin main 2>/dev/null; then
+    echo "[INFO] Fetched latest commits from origin/main"
+    
+    # Reset to remote version (handles divergent branches gracefully)
+    if git reset --hard origin/main 2>/dev/null; then
+        echo "[INFO] Successfully synchronized with origin/main (reset to remote)"
+    else
+        echo "[WARN] Could not reset to origin/main, trying to continue..." >&2
+    fi
 else
-    EXIT_CODE=$?
-    echo "[WARN] git pull failed with exit code $EXIT_CODE, starting with local code..." >&2
-    echo "[WARN] Make sure GitHub credentials are configured (SSH key or GIT_TOKEN env var)" >&2
+    echo "[WARN] Could not fetch from origin, using current local code..." >&2
 fi
 
+# Clean any leftover uncommitted changes
+git clean -fd 2>/dev/null || true
+
 # Log current state
-echo "[INFO] Current commit: $(git rev-parse --short HEAD)"
-echo "[INFO] Branch: $(git rev-parse --abbrev-ref HEAD)"
-echo "[INFO] Repository: $(git remote get-url origin)"
+COMMIT=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
+
+echo "[INFO] Current commit: $COMMIT"
+echo "[INFO] Branch: $BRANCH"
 
 echo "[INFO] Starting application..."
 exec python src/main.py
