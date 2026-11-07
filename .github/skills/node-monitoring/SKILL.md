@@ -2,19 +2,25 @@
 
 ## Description
 
-This skill provides real-time monitoring of the Massa blockchain node via the `/node` command. It queries the node's JSON-RPC API, displays a text summary, and generates a validation chart.
+This skill provides real-time monitoring of the Massa blockchain node via `/node` and `/status`. `/node` reports wallet and validation data with a chart; `/status` combines Docker container state, healthcheck, JSON-RPC availability, peer/cycle/slot details, and recent activity.
 
 ## Command
 
 ```
 /node
+/status
 ```
+
+`/massa_version` affiche la version `MASSA_VERSION` et accepte une nouvelle version, par exemple `/massa_version MAIN.5.2`. La commande met à jour le Dockerfile du contexte de build partagé; le nœud actif n'est pas remplacé automatiquement. Appliquer le changement ensuite sur l'hôte avec `docker-compose up -d --build massa`.
+
+`/status` reports whether the Docker container is stopped, restarting, running, or still undergoing its healthcheck. A running process with unavailable RPC is reported as starting or having a problem, rather than as operational.
 
 ## Sub-skills
 
 ### 1. JSON-RPC Query
 
-- Calls `get_addresses(logger, massa_node_address)` from `services/massa_rpc.py`
+- Calls `get_addresses(logger, massa_node_address, massa_node_rpc_url)` from `services/massa_rpc.py`
+- Uses the local Massa node JSON-RPC service by default (`http://massa:33034/api/v2` in Docker Compose), rather than the public mainnet endpoint
 - Sends a POST request to the Massa node's JSON-RPC endpoint
 - Handles network errors (timeout, connection refused) and returns a `{"error": "..."}` dict on failure
 
@@ -72,6 +78,7 @@ This skill provides real-time monitoring of the Massa blockchain node via the `/
 | `topology.json` Key | Description |
 |---------------------|-------------|
 | `massa_node_address` | Massa wallet address for monitoring |
+| `massa_node_rpc_url` | Massa node JSON-RPC URL; defaults to `http://massa:33034/api/v2` on the Docker Compose network |
 
 ## Error Handling
 
