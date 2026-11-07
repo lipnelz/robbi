@@ -69,7 +69,9 @@ def run_async_func(application: Application) -> None:
             'interval',
             minutes=60,
             id=JOB_SCHED_NAME,
-            name=JOB_SCHED_NAME
+            name=JOB_SCHED_NAME,
+            coalesce=True,  # Skip overlapping runs if scheduler lags
+            misfire_grace_time=120,  # Allow 2min grace for late execution
         )
 
         if not scheduler.running:
@@ -132,7 +134,14 @@ def run_coroutine_in_loop(coroutine, application, loop) -> None:
         else:
             # Run synchronously on the idle loop
             logging.info("Running coroutine in a new loop.")
-            loop.run_until_complete(coroutine(application))
+            try:
+                loop.run_until_complete(coroutine(application))
+            except Exception as e:
+                logging.error(
+                    "Unhandled exception in coroutine %s: %s",
+                    getattr(coroutine, "__name__", repr(coroutine)),
+                    exc_info=True
+                )
     except Exception as e:
         logging.error(f"Error in run_coroutine_in_loop: {e}")
 
@@ -190,8 +199,18 @@ async def periodic_node_ping(application: Application) -> None:
 
         logging.info(f"Extracted data: {data}")
 
-        # Node is considered down if any NOK count is non-zero or roll count is 0
-        node_is_up = not (any(data[4]) or data[1] == 0)
+        # Node is considered down only if:
+        # 1. Roll count is 0 (node has no staking capacity), OR
+        # 2. There are RECENT critical NOK counts (validation failures in last 5 cycles)
+        # Using any(data[4]) alone is too aggressive and causes false positives
+        roll_count = data[1]
+        nok_counts = data[4]
+        
+        # Check only recent NOK counts (last 5 cycles) to avoid false negatives from historical failures
+        recent_noks = nok_counts[-5:] if len(nok_counts) >= 5 else nok_counts
+        has_recent_nok = any(recent_noks)
+        
+        node_is_up = not (has_recent_nok or roll_count == 0)
         record_node_status(node_is_up)
         status_recorded = True
 
@@ -199,9 +218,9 @@ async def periodic_node_ping(application: Application) -> None:
             # Alert all users immediately when node is down
             for user_id in allowed_user_ids:
                 await application.bot.send_message(chat_id=user_id, text=NODE_IS_DOWN)
-            logging.info("Node is down.")
+            logging.info(f"Node is down. Recent NOKs: {recent_noks}, Rolls: {roll_count}")
         else:
-            logging.info("Node is up.")
+            logging.info(f"Node is up. Recent NOKs: {recent_noks}, Rolls: {roll_count}")
 
         # Record current balance snapshot with timestamp, including system resources
         now = datetime.now()

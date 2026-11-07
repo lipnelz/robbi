@@ -41,6 +41,8 @@ def disable_prints() -> None:
     devnull = open(os.devnull, 'w')
     sys.stdout = devnull
     sys.stderr = devnull
+    # Note: devnull is kept alive as sys.stdout/stderr reference, will be GC'd on process exit
+    # For a more robust solution, consider using logging exclusively instead of redirecting prints
 
 
 async def post_init(application: Application) -> None:
@@ -83,8 +85,14 @@ def main():
     if not bot_token or admin_id is None:
         logging.error("Missing required config: 'telegram_bot_token' or 'user_white_list.admin'")
         return
-    allowed_user_ids = {str(admin_id)}
+    
+    # Validate required configuration fields
     massa_node_address = config.get('massa_node_address')
+    if not massa_node_address:
+        logging.error("Missing required config: 'massa_node_address'")
+        return
+    
+    allowed_user_ids = {str(admin_id)}
     massa_node_rpc_url = config.get('massa_node_rpc_url', DEFAULT_MASSA_RPC_URL)
     ninja_key = config.get('ninja_api_key')
     node_container_name = config.get('node_container_name', 'massa-container')

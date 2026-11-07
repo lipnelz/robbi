@@ -53,7 +53,7 @@ class TestCreatePngPlot:
         mock_plt, fig, _, _ = _make_plt_mock()
         with patch('services.plotting.plt', mock_plt):
             create_png_plot([1], [0], [1])
-        mock_plt.close.assert_called_once_with(fig)
+        mock_plt.close.assert_any_call(fig)  # Also called with "all"
 
     def test_closes_figure_on_exception(self, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
@@ -62,7 +62,7 @@ class TestCreatePngPlot:
         with patch('services.plotting.plt', mock_plt):
             with pytest.raises(RuntimeError):
                 create_png_plot([1], [0], [1])
-        mock_plt.close.assert_called_with(fig)
+        mock_plt.close.assert_any_call(fig)  # Also called with "all"
 
 
 # ---------------------------------------------------------------------------
@@ -114,7 +114,7 @@ class TestCreateResourcesPlot:
         history = {"2024/01/01-10:00": {"temperature_avg": 50.0}}
         with patch('services.plotting.plt', mock_plt):
             create_resources_plot(history)
-        mock_plt.close.assert_called_with(fig)
+        mock_plt.close.assert_any_call(fig)  # Also called with "all"
 
 
 # ---------------------------------------------------------------------------
@@ -141,7 +141,7 @@ class TestCreateBalanceHistoryPlot:
         history = {"2024/01/01-10:00": {"balance": 50.0}}
         with patch('services.plotting.plt', mock_plt):
             create_balance_history_plot(history)
-        mock_plt.close.assert_called_with(fig)
+        mock_plt.close.assert_any_call(fig)  # Also called with "all"
 
     def test_with_legacy_string_values(self, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)

@@ -1,6 +1,8 @@
 import math
 from pathlib import Path
 from uuid import uuid4
+import matplotlib
+matplotlib.use('Agg')  # Non-interactive backend, prevents memory accumulation
 import matplotlib.pyplot as plt
 from typing import List
 
@@ -41,6 +43,7 @@ def create_png_plot(cycles: List[int], nok_counts: List[int], ok_counts: List[in
         Path(plot_name).touch(exist_ok=True)
     finally:
         plt.close(fig)
+        plt.close('all')  # Clear all figure references to prevent memory leak
     return plot_name
 
 
@@ -120,6 +123,7 @@ def create_resources_plot(resource_history: dict) -> str:
         Path(resources_plot_name).touch(exist_ok=True)
     finally:
         plt.close(fig)
+        plt.close('all')  # Clear all figure references to prevent memory leak
 
     return resources_plot_name
 
@@ -157,4 +161,5 @@ def create_balance_history_plot(balance_history: dict) -> str:
         Path(history_plot_name).touch(exist_ok=True)
     finally:
         plt.close(fig)
+        plt.close('all')  # Clear all figure references to prevent memory leak
     return history_plot_name
