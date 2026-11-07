@@ -14,7 +14,7 @@ from services.massa_rpc import (
 
 class TestGetAddresses:
     def test_default_rpc_url_uses_massa_api_v2_port(self):
-        assert DEFAULT_MASSA_RPC_URL == 'http://massa:33036/api/v2'
+        assert DEFAULT_MASSA_RPC_URL == 'http://massa:33035'
 
     def test_calls_safe_request_with_correct_post_body(self):
         logger = MagicMock(spec=logging.Logger)

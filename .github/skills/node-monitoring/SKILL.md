@@ -20,7 +20,7 @@ This skill provides real-time monitoring of the Massa blockchain node via `/node
 ### 1. JSON-RPC Query
 
 - Calls `get_addresses(logger, massa_node_address, massa_node_rpc_url)` from `services/massa_rpc.py`
-- Uses the local Massa node JSON-RPC service by default (`http://massa:33034/api/v2` in Docker Compose), rather than the public mainnet endpoint
+- Uses the local Massa node JSON-RPC service by default (`http://massa:33035` in Docker Compose), rather than the public mainnet endpoint
 - Sends a POST request to the Massa node's JSON-RPC endpoint
 - Handles network errors (timeout, connection refused) and returns a `{"error": "..."}` dict on failure
 
@@ -78,7 +78,7 @@ This skill provides real-time monitoring of the Massa blockchain node via `/node
 | `topology.json` Key | Description |
 |---------------------|-------------|
 | `massa_node_address` | Massa wallet address for monitoring |
-| `massa_node_rpc_url` | Massa node JSON-RPC URL; defaults to `http://massa:33036/api/v2` on the Docker Compose network |
+| `massa_node_rpc_url` | Massa node JSON-RPC URL; defaults to `http://massa:33035` on the Docker Compose network |
 
 ## Error Handling
 
