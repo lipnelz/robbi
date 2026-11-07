@@ -101,7 +101,7 @@ def create_resources_plot(resource_history: dict) -> str:
             )
             ax2.tick_params(axis='y', labelcolor=color_ram)
 
-        fig.suptitle('System Resources Over Time', fontsize=14, fontweight='bold')
+        fig.suptitle('Container-Visible Resources Over Time', fontsize=14, fontweight='bold')
         fig.tight_layout()
 
         # Add legend from both axes

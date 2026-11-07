@@ -54,8 +54,10 @@ class TestPeriodicNodePing:
         app = _make_application()
         with patch('handlers.scheduler.get_addresses', return_value=_VALID_JSON), \
              patch('handlers.scheduler.get_system_stats', return_value={}), \
+             patch('handlers.scheduler.record_node_status') as record_status, \
              patch('handlers.scheduler.save_balance_history'):
             await periodic_node_ping(app)
+        record_status.assert_called_once_with(True)
         # Node is up → should NOT call send_message with NODE_IS_DOWN
         for send_call in app.bot.send_message.call_args_list:
             assert "down" not in send_call[1].get('text', '').lower()
@@ -64,8 +66,10 @@ class TestPeriodicNodePing:
         app = _make_application()
         with patch('handlers.scheduler.get_addresses', return_value=_DOWN_JSON), \
              patch('handlers.scheduler.get_system_stats', return_value={}), \
+             patch('handlers.scheduler.record_node_status') as record_status, \
              patch('handlers.scheduler.save_balance_history'):
             await periodic_node_ping(app)
+        record_status.assert_called_once_with(False)
         # Should send NODE_IS_DOWN message
         app.bot.send_message.assert_called()
         texts = [c[1]['text'] for c in app.bot.send_message.call_args_list]
@@ -74,8 +78,10 @@ class TestPeriodicNodePing:
     async def test_api_error_timeout_sends_photo(self):
         app = _make_application()
         with patch('handlers.scheduler.get_addresses', return_value={"error": "Request timed out."}), \
+             patch('handlers.scheduler.record_node_status') as record_status, \
              patch('builtins.open', mock_open(read_data=b"PNG")):
             await periodic_node_ping(app)
+        record_status.assert_called_once_with(False)
         app.bot.send_photo.assert_called()
 
     async def test_api_error_other_sends_photo(self):

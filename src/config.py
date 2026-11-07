@@ -41,8 +41,10 @@ COMMANDS_LIST = [
     {'id': 4, 'cmd_txt': 'hist', 'cmd_desc': 'Get node balance history'},
     {'id': 5, 'cmd_txt': 'flush', 'cmd_desc': 'Flush local logs'},
     {'id': 6, 'cmd_txt': 'temperature', 'cmd_desc': 'Get system temperature, CPU and RAM'},
-    {'id': 7, 'cmd_txt': 'perf', 'cmd_desc': 'Get node performance stats (RPC latency, uptime)'},
+    {'id': 7, 'cmd_txt': 'perf', 'cmd_desc': 'Get RPC latency and observed node availability'},
     {'id': 8, 'cmd_txt': 'docker', 'cmd_desc': 'Manage Docker containers (start/stop/restart)'},
+    {'id': 9, 'cmd_txt': 'status', 'cmd_desc': 'Check Massa node startup, health and activity'},
+    {'id': 10, 'cmd_txt': 'massa_version', 'cmd_desc': 'Show or update the Massa Docker build version'},
 ]
 
 # Configure logging module

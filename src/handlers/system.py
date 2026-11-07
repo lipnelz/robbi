@@ -4,7 +4,8 @@ from datetime import datetime, timedelta
 from telegram import Update
 from telegram.ext import CallbackContext
 from services.system_monitor import get_system_stats
-from services.massa_rpc import measure_rpc_latency
+from services.massa_rpc import DEFAULT_MASSA_RPC_URL, measure_rpc_latency
+from services.node_status import load_node_status_history
 from handlers.common import auth_required
 from config import BUDDY_FILE_NAME
 
@@ -44,7 +45,7 @@ async def temperature(update: Update, context: CallbackContext) -> None:
             return
 
         formatted_string = (
-            f"🌡️ System Status\n"
+            f"🌡️ Container-Visible System Status\n"
             f"-----------\n"
         )
 
@@ -58,7 +59,7 @@ async def temperature(update: Update, context: CallbackContext) -> None:
 
         formatted_string += (
             f"-----------\n"
-            f"CPU Usage Global: {stats['cpu_percent']}%\n"
+            f"Container-Visible CPU Usage: {stats['cpu_percent']}%\n"
             f"-----------\n"
         )
 
@@ -70,7 +71,7 @@ async def temperature(update: Update, context: CallbackContext) -> None:
 
         formatted_string += (
             f"-----------\n"
-            f"RAM Usage: {stats['ram_percent']}%\n"
+            f"Container-Visible RAM Usage: {stats['ram_percent']}%\n"
             f"RAM Available: {stats['ram_available_gb']} GB / {stats['ram_total_gb']} GB"
         )
 
@@ -80,25 +81,28 @@ async def temperature(update: Update, context: CallbackContext) -> None:
         await update.message.reply_text("Error retrieving system stats")
 
 
-def _calculate_uptime(balance_history: dict) -> float:
+def _calculate_observed_availability(node_status_history: dict, now: datetime = None):
     """
-    Calculate node uptime percentage based on balance history entries.
-    Assumes one entry per hour = 24 entries in 24h = 100% uptime.
+    Calculate the share of successful scheduled checks in the last 24 hours.
+
+    This is observed availability, not continuous uptime between checks.
     """
-    if not balance_history:
-        return 0.0
-    
-    now = datetime.now()
+    now = now or datetime.now()
     cutoff = now - timedelta(hours=24)
-    
-    entries_in_24h = sum(
-        1 for key in balance_history.keys()
-        if _is_recent(key, cutoff, now)
-    )
-    
-    # Max 24 entries in 24h = 100%
-    uptime = (entries_in_24h / 24) * 100
-    return round(min(uptime, 100.0), 1)
+    checks = []
+    for timestamp, is_up in node_status_history.items():
+        try:
+            checked_at = datetime.fromisoformat(timestamp)
+        except (TypeError, ValueError):
+            continue
+        if checked_at.tzinfo is not None:
+            checked_at = checked_at.astimezone().replace(tzinfo=None)
+        if cutoff <= checked_at <= now and isinstance(is_up, bool):
+            checks.append(is_up)
+    if not checks:
+        return None, 0, 0
+    successful_checks = sum(checks)
+    return round(successful_checks / len(checks) * 100, 1), successful_checks, len(checks)
 
 
 def _is_recent(key: str, cutoff: datetime, now: datetime) -> bool:
@@ -120,27 +124,34 @@ def _is_recent(key: str, cutoff: datetime, now: datetime) -> bool:
 
 @auth_required
 async def perf(update: Update, context: CallbackContext) -> None:
-    """Handle /perf command: display node performance stats (RPC latency, uptime %)."""
+    """Handle /perf command: display RPC latency and observed node availability."""
     logging.info(f'User {update.effective_user.id} used the /perf command.')
     massa_node_address = context.bot_data['massa_node_address']
+    massa_node_rpc_url = context.bot_data.get('massa_node_rpc_url', DEFAULT_MASSA_RPC_URL)
     
     try:
         # Measure RPC latency
-        perf_data = measure_rpc_latency(logging, massa_node_address)
+        perf_data = measure_rpc_latency(logging, massa_node_address, massa_node_rpc_url)
         
         if "error" in perf_data:
             await update.message.reply_text(f"Error: {perf_data['error']}")
             return
         
-        # Calculate uptime from balance history
-        balance_history = context.bot_data.get('balance_history', {})
-        uptime_percent = _calculate_uptime(balance_history)
-        
+        availability, successful_checks, check_count = _calculate_observed_availability(
+            load_node_status_history()
+        )
+        availability_text = (
+            f"Observed availability (24h): {availability}% "
+            f"({successful_checks}/{check_count} successful checks)"
+            if availability is not None
+            else "Observed availability (24h): no scheduled checks recorded"
+        )
+
         formatted_string = (
             f"⚡ Node Performance\n"
             f"-----------\n"
             f"RPC Latency: {perf_data['latency_ms']} ms\n"
-            f"Uptime (24h): {uptime_percent}%"
+            f"{availability_text}"
         )
         
         await update.message.reply_text(formatted_string)

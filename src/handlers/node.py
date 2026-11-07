@@ -3,7 +3,7 @@ import asyncio
 import logging
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import CallbackContext, ConversationHandler
-from services.massa_rpc import get_addresses
+from services.massa_rpc import DEFAULT_MASSA_RPC_URL, get_addresses
 from services.docker_manager import start_docker_node, stop_docker_node, restart_bot, exec_massa_client
 from handlers.common import auth_required, cb_auth_required, handle_api_error, safe_delete_file, notify_admins_unauthorized
 from services.history import (
@@ -66,11 +66,12 @@ async def node(update: Update, context: CallbackContext) -> None:
     logging.info(f'User {update.effective_user.id} used the /node command.')
     balance_history = context.bot_data['balance_history']
     massa_node_address = context.bot_data['massa_node_address']
+    massa_node_rpc_url = context.bot_data.get('massa_node_rpc_url', DEFAULT_MASSA_RPC_URL)
 
     image_path = None
     try:
         # Fetch node data via JSON-RPC
-        json_data = get_addresses(logging, massa_node_address)
+        json_data = get_addresses(logging, massa_node_address, massa_node_rpc_url)
         if await handle_api_error(update, json_data):
             return
 
@@ -473,7 +474,7 @@ async def docker_start_confirm(update: Update, context: CallbackContext) -> int:
 
 @cb_auth_required
 async def docker_stop_confirm(update: Update, context: CallbackContext) -> int:
-    """Callback for docker stop confirmation: execute docker stop command."""
+    """Acknowledge the stop immediately and report its result in the background."""
     query = update.callback_query
     user_id = str(query.from_user.id)
     logging.info(f'User {user_id} confirmed docker stop.')
@@ -486,22 +487,33 @@ async def docker_stop_confirm(update: Update, context: CallbackContext) -> int:
             await query.answer()
             return ConversationHandler.END
 
-        # Execute the docker stop command
-        result = stop_docker_node(logging, container_name)
-
-        if result['status'] == 'ok':
-            await query.edit_message_text(text=result['message'])
-            logging.info(f"User {user_id} successfully stopped the docker container.")
-        else:
-            await query.edit_message_text(text=result['message'])
-
-        await query.answer()
+        await query.answer("Arrêt du conteneur Massa en cours…")
+        await query.edit_message_text(text="⏳ Arrêt du conteneur Massa en cours…")
+        context.application.create_task(
+            _stop_docker_node_and_report(query, user_id, container_name)
+        )
     except Exception as e:
         logging.error(f"Error executing docker stop: {e}")
         await query.edit_message_text(text="❌ Error executing docker stop command.")
-        await query.answer()
 
     return ConversationHandler.END
+
+
+async def _stop_docker_node_and_report(query, user_id: str, container_name: str) -> None:
+    """Stop the Massa container off-loop and edit the acknowledgement with the result."""
+    try:
+        result = await asyncio.to_thread(stop_docker_node, logging, container_name)
+        message = result['message']
+        if result['status'] == 'ok':
+            logging.info("User %s successfully stopped the Docker container.", user_id)
+    except Exception as error:
+        logging.exception("Error executing docker stop")
+        message = "❌ Error executing docker stop command."
+
+    try:
+        await query.edit_message_text(text=message)
+    except Exception:
+        logging.exception("Could not report Docker stop result to user %s.", user_id)
 
 
 @cb_auth_required
