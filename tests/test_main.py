@@ -126,9 +126,11 @@ class TestMainFunction:
         with patch('builtins.open', mock_open(read_data=json.dumps(config))):
             main_module.main()
 
-    def _run_main_mocked(self, addresses_result):
+    def _run_main_mocked(self, addresses_result, rpc_url=None):
         """Helper that runs main() with everything mocked; returns the mock application."""
         config = self._topology()
+        if rpc_url is not None:
+            config['massa_node_rpc_url'] = rpc_url
         mock_app_builder = MagicMock()
         mock_app = MagicMock()
         mock_app.bot_data = {}
@@ -138,27 +140,38 @@ class TestMainFunction:
         mock_app_builder.build.return_value = mock_app
 
         with patch('builtins.open', mock_open(read_data=json.dumps(config))), \
-             patch('main.get_addresses', return_value=addresses_result), \
+             patch('main.get_addresses', return_value=addresses_result) as mock_get_addresses, \
              patch('main.load_balance_history', return_value={}), \
              patch('main.Application.builder', return_value=mock_app_builder), \
              patch('main.run_async_func'):
             main_module.main()
 
-        return mock_app
+        return mock_app, mock_get_addresses
 
     def test_full_main_with_mocked_application(self):
         """Test main() with all dependencies mocked to avoid real network calls."""
-        mock_app = self._run_main_mocked({"result": []})
+        mock_app, _ = self._run_main_mocked({"result": []})
         # run_polling must have been called on the application
         mock_app.run_polling.assert_called_once()
 
     def test_main_with_api_error_timeout(self):
         """Test main() when initial node check returns a timeout error."""
         # Must not raise; run_polling is still called
-        mock_app = self._run_main_mocked({"error": "Request timed out."})
+        mock_app, _ = self._run_main_mocked({"error": "Request timed out."})
         mock_app.run_polling.assert_called_once()
 
     def test_main_with_api_error_other(self):
         """Test main() when initial node check returns a non-timeout error."""
-        mock_app = self._run_main_mocked({"error": "Connection refused"})
+        mock_app, _ = self._run_main_mocked({"error": "Connection refused"})
         mock_app.run_polling.assert_called_once()
+
+    def test_initial_check_uses_configured_local_rpc_endpoint(self):
+        rpc_url = 'http://massa-node:33034/api/v2'
+        mock_app, mock_get_addresses = self._run_main_mocked({"result": []}, rpc_url)
+
+        mock_get_addresses.assert_called_once_with(
+            main_module.logging,
+            'AU1test',
+            rpc_url,
+        )
+        assert mock_app.bot_data['massa_node_rpc_url'] == rpc_url

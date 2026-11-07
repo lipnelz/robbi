@@ -6,7 +6,7 @@ import threading
 from telegram import BotCommand
 from telegram.ext import Application, CommandHandler, ContextTypes, ConversationHandler, CallbackQueryHandler, MessageHandler, filters
 from telegram.request import HTTPXRequest
-from services.massa_rpc import get_addresses
+from services.massa_rpc import DEFAULT_MASSA_RPC_URL, get_addresses
 from services.history import load_balance_history
 from config import (
     FLUSH_CONFIRM_STATE, HIST_CONFIRM_STATE, COMMANDS_LIST,
@@ -18,6 +18,8 @@ from handlers.node import node, flush, flush_confirm_yes, flush_confirm_no, hist
 from handlers.system import _get_git_commit_hash
 from handlers.price import btc, mas
 from handlers.system import hi, temperature, perf
+from handlers.node_status import node_status
+from handlers.deployment import massa_version
 from handlers.scheduler import run_async_func, stop_async_func
 
 
@@ -29,6 +31,8 @@ HANDLER_MAP = {
     'mas': mas,
     'temperature': temperature,
     'perf': perf,
+    'status': node_status,
+    'massa_version': massa_version,
 }
 
 
@@ -81,6 +85,7 @@ def main():
         return
     allowed_user_ids = {str(admin_id)}
     massa_node_address = config.get('massa_node_address')
+    massa_node_rpc_url = config.get('massa_node_rpc_url', DEFAULT_MASSA_RPC_URL)
     ninja_key = config.get('ninja_api_key')
     node_container_name = config.get('node_container_name', 'massa-container')
     robbi_container_name = config.get('robbi_container_name', 'robbi-container')
@@ -95,7 +100,7 @@ def main():
     logging.info("Starting bot...")
 
     # Perform an initial node health check at startup
-    json_data = get_addresses(logging, massa_node_address)
+    json_data = get_addresses(logging, massa_node_address, massa_node_rpc_url)
     if "error" in json_data:
         error_message = json_data["error"]
         if "timed out" in error_message:
@@ -115,6 +120,7 @@ def main():
     # This replaces global variables and allows handlers to share mutable state.
     application.bot_data['allowed_user_ids'] = allowed_user_ids
     application.bot_data['massa_node_address'] = massa_node_address
+    application.bot_data['massa_node_rpc_url'] = massa_node_rpc_url
     application.bot_data['ninja_key'] = ninja_key
     application.bot_data['balance_history'] = balance_history
     application.bot_data['balance_lock'] = threading.Lock()

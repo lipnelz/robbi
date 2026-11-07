@@ -1,4 +1,5 @@
 """Additional tests for node.py – docker handlers, hist_confirm, and edge-cases."""
+import asyncio
 import threading
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch, mock_open
@@ -147,6 +148,13 @@ class TestDockerStartStop:
 # ---------------------------------------------------------------------------
 
 class TestDockerStartStopConfirm:
+    def _schedule_background_tasks(self, context):
+        tasks = []
+        context.application.create_task.side_effect = lambda coroutine: tasks.append(
+            asyncio.create_task(coroutine)
+        )
+        return tasks
+
     async def test_start_confirm_happy_path(self):
         update = _make_query_update("123")
         context = _make_context()
@@ -187,16 +195,38 @@ class TestDockerStartStopConfirm:
     async def test_stop_confirm_happy_path(self):
         update = _make_query_update("123")
         context = _make_context()
-        with patch('handlers.node.stop_docker_node', return_value={"status": "ok", "message": "stopped"}):
+        tasks = self._schedule_background_tasks(context)
+
+        def stop_after_acknowledgement(logger, container_name):
+            update.callback_query.answer.assert_awaited_once()
+            update.callback_query.edit_message_text.assert_awaited_once_with(
+                text="⏳ Arrêt du conteneur Massa en cours…"
+            )
+            return {"status": "ok", "message": "stopped"}
+
+        with patch('handlers.node.stop_docker_node', side_effect=stop_after_acknowledgement) as stop_node:
             result = await docker_stop_confirm(update, context)
-        assert result == ConversationHandler.END
+            assert result == ConversationHandler.END
+            context.application.create_task.assert_called_once()
+            await asyncio.gather(*tasks)
+
+        stop_node.assert_called_once()
+        assert stop_node.call_args.args[1] == 'massa-node'
+        assert update.callback_query.edit_message_text.await_args_list[-1].kwargs['text'] == 'stopped'
 
     async def test_stop_confirm_error_status(self):
         update = _make_query_update("123")
         context = _make_context()
+        tasks = self._schedule_background_tasks(context)
         with patch('handlers.node.stop_docker_node', return_value={"status": "error", "message": "fail"}):
             result = await docker_stop_confirm(update, context)
-        assert result == ConversationHandler.END
+            assert result == ConversationHandler.END
+            await asyncio.gather(*tasks)
+        assert update.callback_query.answer.await_count == 1
+        assert update.callback_query.edit_message_text.await_args_list[0].kwargs['text'] == (
+            "⏳ Arrêt du conteneur Massa en cours…"
+        )
+        assert update.callback_query.edit_message_text.await_args_list[-1].kwargs['text'] == 'fail'
 
     async def test_stop_confirm_no_container_name(self):
         update = _make_query_update("123")
@@ -208,9 +238,11 @@ class TestDockerStartStopConfirm:
     async def test_stop_confirm_exception(self):
         update = _make_query_update("123")
         context = _make_context()
+        tasks = self._schedule_background_tasks(context)
         with patch('handlers.node.stop_docker_node', side_effect=Exception("crash")):
             result = await docker_stop_confirm(update, context)
-        assert result == ConversationHandler.END
+            assert result == ConversationHandler.END
+            await asyncio.gather(*tasks)
 
     async def test_stop_confirm_unauthorized(self):
         update = _make_query_update("999")
