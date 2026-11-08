@@ -34,6 +34,8 @@ NODE_IS_UP = 'Node is up and running'
 
 # Bot commands
 COMMANDS_LIST = [
+    {'id': 11, 'cmd_txt': 'menu', 'cmd_desc': 'Open the main menu'},
+    {'id': 12, 'cmd_txt': 'help', 'cmd_desc': 'Show help and shortcuts'},
     {'id': 0, 'cmd_txt': 'hi', 'cmd_desc': 'Say hi to Robbi'},
     {'id': 1, 'cmd_txt': 'node', 'cmd_desc': 'Get node results'},
     {'id': 2, 'cmd_txt': 'btc', 'cmd_desc': 'Get BTC current price'},

@@ -20,6 +20,10 @@ from handlers.price import btc, mas
 from handlers.system import hi, temperature, perf
 from handlers.node_status import node_status
 from handlers.deployment import massa_version
+from handlers.menu import (
+    menu, start, menu_home, menu_monitoring, menu_crypto, menu_data, menu_help, menu_run,
+    menu_summary, menu_docker, menu_hist, menu_flush, menu_expired, menu_button_text, MENU_BUTTON_LABEL,
+)
 from handlers.scheduler import run_async_func, stop_async_func
 
 
@@ -33,6 +37,8 @@ HANDLER_MAP = {
     'perf': perf,
     'status': node_status,
     'massa_version': massa_version,
+    'menu': menu,
+    'help': menu,
 }
 
 
@@ -146,7 +152,7 @@ def main():
 
     # Register /flush as a ConversationHandler with inline keyboard confirmation
     flush_handler = ConversationHandler(
-        entry_points=[CommandHandler('flush', flush)],
+        entry_points=[CommandHandler('flush', flush), CallbackQueryHandler(menu_flush, pattern='^menu_flush$')],
         states={
             FLUSH_CONFIRM_STATE: [
                 CallbackQueryHandler(flush_confirm_yes, pattern='^flush_yes$'),
@@ -159,7 +165,7 @@ def main():
 
     # Register /hist as a ConversationHandler with inline keyboard confirmation
     hist_handler = ConversationHandler(
-        entry_points=[CommandHandler('hist', hist)],
+        entry_points=[CommandHandler('hist', hist), CallbackQueryHandler(menu_hist, pattern='^menu_hist$')],
         states={
             HIST_CONFIRM_STATE: [
                 CallbackQueryHandler(hist_confirm_yes, pattern='^hist_yes$'),
@@ -172,9 +178,10 @@ def main():
 
     # Register /docker as a ConversationHandler with menu and inline keyboard confirmation
     docker_handler = ConversationHandler(
-        entry_points=[CommandHandler('docker', docker)],
+        entry_points=[CommandHandler('docker', docker), CallbackQueryHandler(menu_docker, pattern='^menu_docker$')],
         states={
             DOCKER_MENU_STATE: [
+                CallbackQueryHandler(menu_home, pattern='^menu_home$'),
                 CallbackQueryHandler(docker_start, pattern='^docker_start$'),
                 CallbackQueryHandler(docker_stop, pattern='^docker_stop$'),
                 CallbackQueryHandler(docker_restart, pattern='^docker_restart$'),
@@ -216,6 +223,19 @@ def main():
         fallbacks=[CommandHandler('docker', docker)]
     )
     application.add_handler(docker_handler)
+
+    # Stateless menu navigation (registered after the conversations that own menu_docker/hist/flush)
+    application.add_handler(CommandHandler('start', start))
+    application.add_handler(MessageHandler(filters.Regex(f'^{MENU_BUTTON_LABEL}$'), menu_button_text))
+    application.add_handler(CallbackQueryHandler(menu_home, pattern='^menu_home$'))
+    application.add_handler(CallbackQueryHandler(menu_monitoring, pattern='^menu_monitoring$'))
+    application.add_handler(CallbackQueryHandler(menu_crypto, pattern='^menu_crypto$'))
+    application.add_handler(CallbackQueryHandler(menu_data, pattern='^menu_data$'))
+    application.add_handler(CallbackQueryHandler(menu_help, pattern='^menu_help$'))
+    application.add_handler(CallbackQueryHandler(menu_summary, pattern='^menu_summary$'))
+    application.add_handler(CallbackQueryHandler(menu_run, pattern='^menu_run_'))
+    # Buttons from conversations that no longer exist (e.g. after a restart)
+    application.add_handler(CallbackQueryHandler(menu_expired))
 
     application.add_error_handler(error_handler)
 
