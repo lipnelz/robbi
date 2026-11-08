@@ -2,6 +2,6 @@ python-telegram-bot==22.6
 requests==2.33.0
 apscheduler==3.11.0
 tzlocal==5.3.1
-matplotlib==3.10.8
+matplotlib==3.11.2
 psutil==7.2.2
 docker==7.1.0
