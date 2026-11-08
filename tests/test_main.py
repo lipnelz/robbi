@@ -31,7 +31,7 @@ class TestPostInit:
         await main_module.post_init(mock_app)
         mock_app.bot.set_my_commands.assert_called_once()
         commands = mock_app.bot.set_my_commands.call_args[0][0]
-        assert len(commands) > 0
+        assert [cmd.command for cmd in commands] == ['menu']
 
     async def test_commands_have_correct_structure(self):
         from telegram import BotCommand

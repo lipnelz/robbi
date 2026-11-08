@@ -53,7 +53,12 @@ def disable_prints() -> None:
 
 async def post_init(application: Application) -> None:
     """Register bot commands with Telegram after startup."""
-    commands = [BotCommand(command=cmd['cmd_txt'], description=cmd['cmd_desc']) for cmd in COMMANDS_LIST]
+    # Only /menu is advertised in the Telegram dropdown; other commands stay usable by typing them.
+    commands = [
+        BotCommand(command=cmd['cmd_txt'], description=cmd['cmd_desc'])
+        for cmd in COMMANDS_LIST
+        if cmd['cmd_txt'] == 'menu'
+    ]
     await application.bot.set_my_commands(commands)
 
     bot_data = getattr(application, 'bot_data', {})
