@@ -195,7 +195,7 @@ The project has a full unit test suite under `tests/`. Run with:
 pytest
 ```
 
-Configuration is in `pytest.ini`. A detailed description of all tests is available in [`test_plan.md`](test_plan.md).
+Configuration is in `pytest.ini`.
 
 CI runs tests automatically on every push via GitHub Actions (`.github/workflows/tests.yml`). Commit messages are also linted via `.github/workflows/commitlint.yml`.
 
