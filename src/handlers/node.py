@@ -37,6 +37,9 @@ def _build_docker_main_menu_markup() -> InlineKeyboardMarkup:
         [
             InlineKeyboardButton("💻 Massa Client", callback_data='docker_massa'),
         ],
+        [
+            InlineKeyboardButton("🏠 Menu", callback_data='menu_home'),
+        ],
     ]
     return InlineKeyboardMarkup(keyboard)
 

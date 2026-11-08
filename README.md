@@ -25,6 +25,7 @@ src/
 ├── entrypoint.sh
 ├── handlers/
 │   ├── common.py                   # auth_required decorator, handle_api_error helper
+│   ├── menu.py                     # /menu, /help, /start unified button navigation
 │   ├── node.py                     # /node, /flush, /hist, /docker commands
 │   ├── price.py                    # /btc, /mas commands
 │   ├── system.py                   # /hi, /temperature, /perf commands
@@ -92,6 +93,7 @@ Node status, scheduled checks, and `/perf` use `massa_node_rpc_url` to query the
 
 | Command | Description |
 |---------|-------------|
+| `/menu`, `/help` | Main interactive menu (Monitoring, Crypto, Node & Docker, Data, Summary, Help); `/start` also installs a persistent 🏠 Menu button |
 | `/hi` | Greeting with a custom image and current git commit hash |
 | `/node` | Node status: balance, roll count, OK/NOK counts, active rolls + validation chart |
 | `/status` | Massa container state, healthcheck, JSON-RPC availability, cycle, peers, slots and recent activity |
