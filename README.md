@@ -1,241 +1,144 @@
-# Robbi — Telegram bot for Massa node monitoring
+# Robbi
 
-Robbi is a Telegram bot that monitors a [Massa](https://massa.net/) blockchain node, tracks balance history, and provides crypto price data and system stats.
+Robbi is a private Telegram bot for monitoring a [Massa](https://massa.net/) node. It queries the node's JSON-RPC API, keeps a balance history, and provides monitoring, price-tracking, and Docker management commands.
 
 ## Features
 
-- **Massa node monitoring** — Periodically checks node status every 60 minutes and alerts when the node goes down
-- **Balance history** — Persisted to JSON file (`config/balance_history.json`), survives Docker restarts. Records balance, CPU temperature, and RAM usage per snapshot
-- **Scheduled reports** — Automatic status reports at 7 AM, 12 PM, and 9 PM with 24h balance change, average temperature, and history data
-- **Crypto price tracking** — Real-time Bitcoin (API-Ninjas) and Massa/USDT (MEXC) prices
-- **System monitoring** — Container-visible CPU/RAM and available per-sensor temperature details (not guaranteed to represent the host)
-- **Node performance** — RPC latency and observed availability across scheduled checks in the last 24h (not continuous uptime); reports include the successful/total check count
-- **Docker management** — Start/stop the Massa node container, execute Massa client commands (wallet_info, buy_rolls, sell_rolls), and support bot-container restart helpers via the Docker SDK (socket-based, no CLI needed)
-- **User authentication** — All commands restricted to whitelisted user via `auth_required` decorator
-- **Interactive confirmations** — Inline keyboard buttons for operations (`/flush`, `/hist`, `/docker`)
+- Monitor node status and activity through JSON-RPC.
+- Check the node every 60 minutes, send alerts when checks fail, and send reports when checks run at 7 AM, 12 PM, and 9 PM (process-local time).
+- Persist balance, average temperature, and memory usage history, with charts.
+- Measure RPC latency and observed availability from scheduled checks (this is not continuous uptime monitoring).
+- Fetch BTC prices from API-Ninjas and MAS/USDT prices from MEXC.
+- Report CPU, memory, and temperature metrics visible from the bot container.
+- Navigate commands using an interactive Telegram menu.
+- Manage Docker containers and run `massa-client` commands when the Docker socket is accessible.
+- Restrict access to the configured Telegram administrator ID.
 
-## Project Structure
+## Telegram commands
 
-```
-src/
-├── main.py                         # Entry point: config, bot_data setup, handler registration
-├── config.py                       # Constants, conversation states, logging config, command list
-├── jrequests.py                    # Backward-compatibility facade (re-exports from services/)
-├── Dockerfile
-├── entrypoint.sh
-├── handlers/
-│   ├── common.py                   # auth_required decorator, handle_api_error helper
-│   ├── menu.py                     # /menu, /help, /start unified button navigation
-│   ├── node.py                     # /node, /flush, /hist, /docker commands
-│   ├── price.py                    # /btc, /mas commands
-│   ├── system.py                   # /hi, /temperature, /perf commands
-│   └── scheduler.py                # Periodic node ping (APScheduler, every 60 min)
-├── services/
-│   ├── docker_manager.py           # Docker SDK wrapper (start/stop/restart, exec massa-client)
-│   ├── history.py                  # Balance history load/save/filter (JSON persistence)
-│   ├── http_client.py              # Safe HTTP request wrapper with retry logic
-│   ├── massa_rpc.py                # Massa blockchain JSON-RPC calls
-│   ├── plotting.py                 # Chart generation (matplotlib) — validation, resources, balance
-│   ├── price_api.py                # External price API wrappers (API-Ninjas, MEXC)
-│   └── system_monitor.py           # System stats via psutil (CPU, RAM, temperatures)
-└── media/                          # Images used in bot responses
-tests/                              # pytest test suite (unit tests for all modules)
-topology_template.json              # Configuration template — copy to topology.json and fill in values
-```
-
-Shared state (`allowed_user_ids`, `massa_node_address`, `ninja_key`, `balance_history`, `node_container_name`, `robbi_container_name`, etc.) is stored in `application.bot_data` and accessed via `context.bot_data` in handlers — no global variables. A threading lock protects concurrent history updates.
-
-## Configuration
-
-A `topology_template.json` file is provided at the repository root. Copy it to `topology.json` and fill in your values:
-
-```bash
-cp topology_template.json topology.json
-```
-
-The `topology.json` file provides all configuration:
-
-```json
-{
-    "telegram_bot_token": "YOUR_API_KEY",
-    "user_white_list": {
-        "admin": "YOUR_USER_ID"
-    },
-    "massa_node_address": "YOUR_MASSA_ADDRESS",
-    "massa_node_rpc_url": "http://massa:33035",
-    "ninja_api_key": "YOUR_NINJA_API_KEY",
-    "node_container_name": "massa-container",
-    "robbi_container_name": "robbi-container",
-    "massa_client_password": "YOUR_MASSA_CLIENT_PASSWORD",
-    "massa_wallet_address": "YOUR_MASSA_WALLET_ADDRESS",
-    "massa_buy_rolls_fee": 0.01
-}
-```
-
-| Key | Description |
-|-----|-------------|
-| `telegram_bot_token` | Telegram bot token from BotFather |
-| `user_white_list.admin` | Telegram user ID authorized to use the bot |
-| `massa_node_address` | Massa wallet address for node monitoring |
-| `massa_node_rpc_url` | JSON-RPC endpoint of the Massa node (defaults to `http://massa:33035` for the Docker Compose service) |
-| `ninja_api_key` | API-Ninjas key for Bitcoin price |
-| `node_container_name` | Name of the Docker container running the Massa node (default: `massa-container`) |
-| `robbi_container_name` | Name of the Docker container running Robbi itself (default: `robbi-container`) |
-| `massa_client_password` | Password for `./massa-client -p` |
-| `massa_wallet_address` | Wallet address used for buy_rolls / sell_rolls commands |
-| `massa_buy_rolls_fee` | Fee for buy/sell rolls transactions (default: `0.01`) |
-
-## Commands
-
-All commands require authentication via `topology.json` whitelist.
-
-Node status, scheduled checks, and `/perf` use `massa_node_rpc_url` to query the Massa node's own JSON-RPC API. In Docker Compose, the default URL uses the `massa` service name on the shared network; for a different deployment, set this key to that node's reachable `/api/v2` URL.
+All commands are restricted to the configured administrator. `/start` and `/menu` open the interactive menu.
 
 | Command | Description |
-|---------|-------------|
-| `/menu`, `/help` | Main interactive menu (Monitoring, Crypto, Node & Docker, Data, Summary, Help); `/start` also installs a persistent 🏠 Menu button |
-| `/hi` | Greeting with a custom image and current git commit hash |
-| `/node` | Node status: balance, roll count, OK/NOK counts, active rolls + validation chart |
-| `/status` | Massa container state, healthcheck, JSON-RPC availability, cycle, peers, slots and recent activity |
-| `/btc` | Bitcoin price: USD price, 24h change, high/low, volume |
-| `/mas` | Massa/USDT price from MEXC: price, change, high/low, volume |
-| `/temperature` | System stats: per-sensor temperatures, per-core CPU usage, RAM |
-| `/perf` | Node performance: RPC latency and observed availability across scheduled checks in the last 24h |
-| `/hist` | Balance history chart (balance, temperature, RAM) + optional text summary |
-| `/flush` | Clear logs with confirmation dialog (option to also clear balance history) |
-| `/docker` | Docker management menu (see below) |
-| `/massa_version` | Affiche la version Massa configurée; `/massa_version MAIN.5.2` la modifie dans le Dockerfile |
+|---|---|
+| `/menu`, `/help` | Open the menu and help |
+| `/hi` | Send a greeting |
+| `/node` | Show balance, rolls, and validation results with a chart |
+| `/status` | Check the Massa container state and node information via RPC |
+| `/perf` | Show RPC latency and observed availability over the last 24 hours |
+| `/temperature` | Show resource and temperature metrics visible from the container |
+| `/btc` | Show Bitcoin price and 24-hour statistics |
+| `/mas` | Show the MAS/USDT price and 24-hour statistics |
+| `/hist` | Show charts and optionally send the balance history as text |
+| `/flush` | Clear the log, with an option to also clear balance history |
+| `/docker` | Open Docker actions and the `massa-client` menu |
+| `/massa_version` | Show the configured Massa version |
+| `/massa_version MAIN.5.2` | Change the version and request a Massa service rebuild |
 
-`/massa_version` modifie le Dockerfile Massa monté, puis lance en arrière-plan `docker-compose up -d --build --force-recreate massa`. Robbi confirme immédiatement la demande et envoie un second message avec le résultat du rebuild. Le service Compose doit monter le dossier du projet au même chemin absolu dans le conteneur Robbi et fournir `MASSA_COMPOSE_PROJECT_DIR` et `MASSA_COMPOSE_FILE`; le Dockerfile Robbi doit embarquer le binaire Docker Compose v2.
-
-### `/docker` — Interactive Menu
-
-The `/docker` command opens a multi-level interactive menu:
-
-```
-🐳 Docker Node Management
-  ├── ▶️ Start       → Confirmation → Start the node container
-  ├── ⏹️ Stop        → Confirmation → Stop the node container
-  ├── 🔁 Restart Bot → Confirmation → Send "Ok" → Wait 1s → Restart the Robbi bot container
-  └── 💻 Massa Client
-        ├── 💰 Wallet Info   → Execute wallet_info
-        ├── 🎲 Buy Rolls     → Input roll count → Confirmation → Execute buy_rolls
-        ├── 💸 Sell Rolls    → Input roll count → Confirmation → Execute sell_rolls
-        └── ⬅️ Back          → Return to main menu
-```
-
-> **Note:** Docker commands use the Python Docker SDK which communicates directly via the Docker socket.
-> The bot container does **not** need the `docker` CLI installed — only the socket mount:
-> ```yaml
-> volumes:
->   - /var/run/docker.sock:/var/run/docker.sock
-> ```
+The `/docker` menu can start or stop the Massa container, restart Robbi, show wallet information, and buy or sell rolls. Actions that change state require confirmation.
 
 ## Requirements
 
-- Python 3.12+
-- A Telegram bot created via [BotFather](https://core.telegram.org/bots#botfather)
-- A Massa node with accessible JSON-RPC API
-- API keys:
-  - [API-Ninjas](https://www.api-ninjas.com/) — Bitcoin price
-  - [MEXC](https://mexcdevelop.github.io/apidocs/spot_v3_en/) — Massa price
+- Python 3.12 or later.
+- A Telegram bot created with [BotFather](https://core.telegram.org/bots#botfather).
+- A Massa node accessible through JSON-RPC.
+- An [API-Ninjas](https://api-ninjas.com/) key for the `/btc` command.
+- Docker and access to the Docker socket if `/docker` and `/status` need to manage or inspect containers.
 
-### Python Dependencies
+The `/mas` command uses MEXC's public API and does not require an API key.
 
-```bash
-pip install -r requirements.txt
+## Configuration
+
+This repository does not include a configuration template. Create `topology.json` in the repository root (or in the process working directory):
+
+```json
+{
+  "telegram_bot_token": "TOKEN_FROM_BOTFATHER",
+  "user_white_list": {
+    "admin": "TELEGRAM_USER_ID"
+  },
+  "massa_node_address": "MASSA_ADDRESS",
+  "massa_node_rpc_url": "http://massa:33035",
+  "ninja_api_key": "API_NINJAS_KEY",
+  "node_container_name": "massa-container",
+  "robbi_container_name": "robbi-container",
+  "massa_client_password": "MASSA_CLIENT_PASSWORD",
+  "massa_wallet_address": "WALLET_ADDRESS",
+  "massa_buy_rolls_fee": 0.01
+}
 ```
 
-Key packages: `python-telegram-bot`, `requests`, `matplotlib`, `apscheduler`, `psutil`, `tzlocal`, `docker`
+The first three fields (`telegram_bot_token`, `user_white_list.admin`, and `massa_node_address`) are required. The rest are optional: the default RPC URL is `http://massa:33035`, the default container names are `massa-container` and `robbi-container`, and the default roll transaction fee is `0.01`. The API-Ninjas key is required for `/btc`; the password and wallet address are needed for `massa-client` commands.
 
-## How to Run
+Keep `topology.json` private; Git ignores it. Set the RPC URL to an address reachable from the environment where Robbi runs.
 
-### Local
+## Install and run locally
 
-```bash
-cp topology_template.json src/topology.json  # or place topology.json in the working directory
-cd src
-python main.py
-```
-
-### Docker (recommended)
-
-The `Dockerfile` (located in `src/`) clones the repository from GitHub and expects `topology.json` to be present in the `src/` build context:
-
-At container startup, `entrypoint.sh` attempts `git pull origin main` before launching `python src/main.py`.
-If the pull fails (network/auth), the bot still starts with the local code already present in the image.
-The Massa container runs the node in the foreground and its healthcheck probes the local JSON-RPC `get_status` method. Robbi's healthcheck verifies that its PID 1 is the bot entrypoint process.
+From the repository root:
 
 ```bash
-cp topology_template.json src/topology.json
-docker build -t robbi ./src
-docker run -d \
-  -v ./docker-volumes/robbi:/app/config \
-  -v /var/run/docker.sock:/var/run/docker.sock \
-  robbi
+python3.12 -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements.txt
+python src/main.py
 ```
 
-Or with `docker-compose`, mount volumes for balance history persistence and Docker access:
+The program reads `topology.json` from the current working directory. Run it from the repository root so that the `media/` assets and data paths also resolve correctly. The bot communicates with Telegram using polling.
+
+## Docker deployment
+
+This repository does not include a `Dockerfile` or a Docker Compose file; define the image and service in your deployment. The `entrypoint.sh` script expects the project under `/app`; it attempts to synchronize with `origin/main`, then runs `python src/main.py`. The bot must be able to read `/app/topology.json` and the repository assets.
+
+To keep history when replacing the container, mount a volume at `/app/config`. To enable Docker commands, also mount the host socket:
 
 ```yaml
 volumes:
-  - ./docker-volumes/robbi:/app/config
+  - ./robbi-config:/app/config
   - /var/run/docker.sock:/var/run/docker.sock
 ```
 
+Access to the Docker socket gives the bot control over containers available on the host. Only enable it if you trust the runtime environment, and protect the bot with an administrator allowlist.
+
+The `/massa_version` command requires additional configuration in the container environment:
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `MASSA_DOCKERFILE_PATH` | `/massa-build-context/Dockerfile` | Massa Dockerfile containing exactly one `ARG MASSA_VERSION=...` |
+| `MASSA_COMPOSE_PROJECT_DIR` | `/host-project` | Compose project directory mounted in the container |
+| `MASSA_COMPOSE_FILE` | `/host-project/docker-compose.yml` | Compose file to use |
+
+The Robbi container must also have the `docker-compose` command available and the mounts required to edit the Dockerfile and rebuild the Compose `massa` service.
+
+## Data and logs
+
+Paths are relative to the process working directory:
+
+- `bot_activity.log`: activity log.
+- `config/balance_history.json`: balance and resource history.
+- `config/node_status_history.json`: scheduled check results, retained for up to 7 days.
+- Charts are temporary and deleted after they are sent.
+
+For local runs, back up `config/` to preserve history. In a container, mount it as a persistent volume.
+
+## Development and tests
+
 ```bash
-docker compose up -d
-```
-
-Activity is logged to `bot_activity.log`.
-
-## Tests
-
-The project has a full unit test suite under `tests/`. Run with:
-
-```bash
+python -m pip install pytest pytest-asyncio pytest-cov
+python -m pip install -r requirements.txt
 pytest
 ```
 
-Configuration is in `pytest.ini`.
+The test suite is in `tests/`. GitHub Actions runs the tests with a 97% coverage threshold and audits dependencies.
 
-CI runs tests automatically on every push via GitHub Actions (`.github/workflows/tests.yml`). Commit messages are also linted via `.github/workflows/commitlint.yml`.
+## Repository structure
 
-## Generated Files
-
-| File | Description | Lifecycle |
-|------|-------------|-----------|
-| `bot_activity.log` | Activity log | Persistent, clearable via `/flush` |
-| `config/balance_history.json` | Balance snapshots | Persistent (Docker volume) |
-| `config/node_status_history.json` | Scheduled node check results, retained for 7 days | Persistent (Docker volume) |
-| `*_plot.png` / `*_balance_history.png` / `*_resources_history.png` | Generated charts with unique filenames (validation, balance history, resources) | Temporary, deleted after sending |
-
-## Notes on Operation
-
-- **Periodic pings** — Every 60 minutes, the bot checks the Massa node and records the balance
-- **Availability metric** — `/perf` reports the percentage of successful scheduled checks in the last 24 hours; it is sampled availability, not continuous uptime
-- **Container metrics** — CPU, RAM, and temperatures are collected from the bot container's view and may not describe the Docker host; CPU temperature may be unavailable
-- **Scheduled reports** — At 7:00, 12:00, and 21:00 (if node is up), sends a detailed status report including:
-  - Balance comparison: first recorded vs current value
-  - Change amount and percentage (📈/📉 indicators)
-  - Last 24h balance history
-- **Graph cleanup** — Charts are deleted after being sent to the user
-- **Error handling** — API timeouts and errors are logged and reported with appropriate feedback images
-
-## Troubleshooting
-
-| Issue | Solution |
-|-------|----------|
-| "Access denied" message | Verify your Telegram user ID in `topology.json` |
-| No node data | Check Massa node is running and JSON-RPC endpoint is reachable |
-| Missing temperature data | Sensor may not be available on your system (non-critical) |
-| Graph generation fails | `pip install --upgrade matplotlib` |
-| Docker commands fail with "No such file or directory" | Ensure `docker` Python package is installed (not the CLI) and the socket is mounted |
-
-## External Links
-
-- [API-Ninjas Documentation](https://www.api-ninjas.com/)
-- [Massa JSON-RPC API](https://docs.massa.net/docs/build/api/jsonrpc)
-- [Telegram Bot API](https://core.telegram.org/bots/api)
-- [MEXC API Documentation](https://mexcdevelop.github.io/apidocs/spot_v3_en/)
-- [python-telegram-bot Documentation](https://python-telegram-bot.readthedocs.io/)
+```text
+src/
+├── main.py                 # Bot configuration and startup
+├── config.py               # Commands, states, and logging
+├── handlers/               # Telegram commands and menus
+└── services/               # Massa RPC, Docker, history, prices, and metrics
+tests/                      # Unit tests
+media/                      # Images used in bot responses
+entrypoint.sh               # Startup script intended for /app
+requirements.txt            # Production Python dependencies
+```
