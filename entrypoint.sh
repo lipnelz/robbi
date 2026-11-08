@@ -6,14 +6,15 @@ cd /app
 echo "[INFO] Starting Robbi bot..."
 echo "[INFO] Attempting to synchronize with origin/main..."
 
-# Configure git credentials if GIT_TOKEN is set (for CI/CD or secure token storage)
+# If GIT_TOKEN is set, pass it per command so it is never written to .git/config
+GIT_AUTH=""
 if [ -n "${GIT_TOKEN:-}" ]; then
     echo "[INFO] Using GIT_TOKEN for authentication..."
-    git remote set-url origin "https://${GIT_TOKEN}@github.com/lipnelz/robbi.git"
+    GIT_AUTH="Authorization: Basic $(printf 'x-access-token:%s' "$GIT_TOKEN" | base64 | tr -d '\n')"
 fi
 
 # Fetch latest changes from remote
-if git fetch origin main 2>/dev/null; then
+if git ${GIT_AUTH:+-c "http.extraheader=$GIT_AUTH"} fetch origin main 2>/dev/null; then
     echo "[INFO] Fetched latest commits from origin/main"
     
     # Reset to remote version (handles divergent branches gracefully)
