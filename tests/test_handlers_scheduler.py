@@ -170,6 +170,8 @@ class TestRunCoroutineInLoop:
 
         run_coroutine_in_loop(dummy_coro, MagicMock(), mock_loop)
         mock_loop.run_until_complete.assert_called_once()
+        # The mocked loop never schedules the coroutine; close it to avoid a warning.
+        mock_loop.run_until_complete.call_args.args[0].close()
 
     def test_with_exception_logs_error(self):
         mock_loop = MagicMock()
